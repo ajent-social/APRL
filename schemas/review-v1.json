@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aprl.invalid/schemas/review-v1.json",
+  "title": "APRL Review v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "task_id", "job_id", "run_id", "generation", "lease_token", "snapshot", "attempt", "operation_id", "correlation_id", "verdict", "summary", "findings"],
+  "properties": {
+    "version": { "const": 1 },
+    "task_id": { "$ref": "#/$defs/uuid" },
+    "job_id": { "$ref": "#/$defs/uuid" },
+    "run_id": { "$ref": "#/$defs/uuid" },
+    "generation": { "type": "integer", "minimum": 0, "maximum": 9223372036854775807 },
+    "lease_token": { "$ref": "#/$defs/uuid" },
+    "snapshot": { "$ref": "#/$defs/snapshot" },
+    "attempt": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+    "operation_id": { "$ref": "#/$defs/uuid" },
+    "correlation_id": { "$ref": "#/$defs/uuid" },
+    "verdict": { "enum": ["approve", "request_changes"] },
+    "summary": { "type": "string" },
+    "requested_change": { "type": "string", "pattern": "\\S" },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "verdict": { "const": "approve" } }, "required": ["verdict"] },
+      "then": {
+        "not": {
+          "properties": {
+            "findings": {
+              "contains": {
+                "properties": { "severity": { "const": "blocker" } },
+                "required": ["severity"]
+              }
+            }
+          },
+          "required": ["findings"]
+        }
+      }
+    },
+    {
+      "if": { "properties": { "verdict": { "const": "request_changes" } }, "required": ["verdict"] },
+      "then": {
+        "anyOf": [
+          {
+            "properties": {
+              "findings": {
+                "contains": {
+                  "properties": { "comment": { "minLength": 1, "pattern": "\\S" } },
+                  "required": ["comment"]
+                }
+              }
+            },
+            "required": ["findings"]
+          },
+          {
+            "properties": { "requested_change": { "type": "string", "pattern": "\\S" } },
+            "required": ["requested_change"]
+          }
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid", "pattern": "^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" },
+    "sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["head_sha", "base_sha"],
+      "properties": {
+        "head_sha": { "$ref": "#/$defs/sha" },
+        "base_sha": { "$ref": "#/$defs/sha" },
+        "integration_sha": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "severity", "comment"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "severity": { "enum": ["blocker", "warning", "nit"] },
+        "comment": { "type": "string", "minLength": 1, "pattern": "\\S" },
+        "suggestion": { "type": "string" },
+        "anchor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["file", "line", "side"],
+          "properties": {
+            "file": { "type": "string", "minLength": 1, "pattern": "\\S" },
+            "line": { "type": "integer", "minimum": 1 },
+            "side": { "enum": ["LEFT", "RIGHT"] }
+          }
+        }
+      }
+    }
+  }
+}

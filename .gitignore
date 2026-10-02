@@ -1,0 +1,8 @@
+/bin/
+/coverage.out
+/coverage.html
+/tmp/
+/ajent.social
+/ajent.social.*
+/.claude/
+/.code-review-graph/
