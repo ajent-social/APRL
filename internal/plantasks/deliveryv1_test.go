@@ -421,7 +421,7 @@ func TestDeliveryV1ObservationEnumsBindingsAndGraphs(t *testing.T) {
 		{ID: "author", Kind: "author", State: "completed", PRURL: "https://github.com/example/project/pull/12", HeadCommit: strings.Repeat("a", 40)},
 		{ID: "review", Kind: "review", State: "ready", DependsOn: []string{"author"}, PRURL: "https://github.com/example/project/pull/12", HeadCommit: strings.Repeat("a", 40)},
 		{ID: "fix", Kind: "fix", State: "pending", DependsOn: []string{"review"}, FindingIDs: []string{"finding-1"}, PRURL: "https://github.com/example/project/pull/12"},
-		{ID: "rereview", Kind: "re_review", State: "pending", DependsOn: []string{"fix"}, PRURL: "https://github.com/example/project/pull/12"},
+		{ID: "rereview", Kind: "re_review", State: "pending", DependsOn: []string{"fix"}, PRURL: "https://github.com/example/project/pull/12", HeadCommit: strings.Repeat("a", 40)},
 		{ID: "delivery", Kind: "delivery", State: "pending", DependsOn: []string{"rereview"}},
 	}
 	if err := valid.Validate(request); err != nil {
