@@ -1123,10 +1123,10 @@ func TestPlanDelegationRechecksExactExpiryAfterLifecyclePersistence(t *testing.T
 	if err != nil {
 		t.Fatalf("construct delegations service: %v", err)
 	}
-	raw, request := plantasksDelegationRequest(t)
+	_, request := plantasksDelegationRequest(t)
 	expiry := start.Add(time.Hour)
 	request.Spec.Envelope.ExpiresAt = expiry
-	raw, err = plantasks.EncodeDeliveryV1Request(request)
+	raw, err := plantasks.EncodeDeliveryV1Request(request)
 	if err != nil {
 		t.Fatalf("encode exact-expiry request: %v", err)
 	}
