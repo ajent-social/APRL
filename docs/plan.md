@@ -193,7 +193,7 @@ Trigger: Dependency planning-task completion alone never permits downstream codi
 - [ ] T8.4 Verify corrected foundation and publish PR  Owner: coordinator  kind: agent stage: verify lane: agent blocked-by: [T8.2, T8.3]  acc: [real database/process boundary regressions, required checks and PR handoff]
 - [ ] T8.5 Independently review and land process reservation correction  Owner: independent-reviewer  kind: agent stage: review lane: agent blocked-by: [T8.4]  acc: [exact PR head accepted, guarded merge and actual landed verification]
 - [x] T8.6 Route outbox work by owner and bind cancellation to exact runs  Owner: control-routing kind: agent stage: author delivery-gate: T8.6.R lane: agent blocked-by: [T1.9, T1.11, T8.1.R2] acc: [dispatcher never consumes LABEL_SYNC; router/control cancel intents capture original task/job/run before revocation; no task-only or persisted-PID cancellation; real PostgreSQL regression and corrective handoff]
-- [ ] T8.6.R Independently review and deliver outbox ownership correction  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T8.6] acc: [exact-head independent acceptance, guarded merge and verified actual landing]
+- [ ] T8.6.R Independently review and deliver outbox ownership correction  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/9 blocked-by: [T8.6] acc: [exact-head independent acceptance, guarded merge and verified actual landing]
 
 ## 5. Parallel Work and Waves
 
