@@ -1106,6 +1106,198 @@ func TestPlanDelegationRechecksExactExpiryAfterLocalAuthorizationVerification(t 
 	}
 }
 
+func TestPlanDelegationRechecksExactExpiryAfterLifecyclePersistence(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	db := testutil.RequireDatabase(t)
+	if err := storage.Migrate(ctx, db.Pool); err != nil {
+		t.Fatalf("migrate delegation test schema: %v", err)
+	}
+	start := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
+	manual := clock.NewManual(start)
+	store := plantasksDelegationStore(t, db.Pool, manual)
+	auth := &plantasksDelegationAuthenticator{caller: "caller-example"}
+	policy := &plantasksDelegationPolicy{}
+	factory := &plantasksDelegationInitialFactory{}
+	service, err := plantasks.NewDelegations(store, auth, policy, factory)
+	if err != nil {
+		t.Fatalf("construct delegations service: %v", err)
+	}
+	raw, request := plantasksDelegationRequest(t)
+	expiry := start.Add(time.Hour)
+	request.Spec.Envelope.ExpiresAt = expiry
+	raw, err = plantasks.EncodeDeliveryV1Request(request)
+	if err != nil {
+		t.Fatalf("encode exact-expiry request: %v", err)
+	}
+
+	lockKey := int64(plantasksDelegationNextID.Add(1))
+	lockConn, err := db.Pool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire advisory-lock connection: %v", err)
+	}
+	defer lockConn.Release()
+	if _, err := lockConn.Exec(ctx, "SELECT pg_advisory_lock($1)", lockKey); err != nil {
+		t.Fatalf("hold lifecycle-insert advisory lock: %v", err)
+	}
+	defer func() {
+		unlockCtx, unlockCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer unlockCancel()
+		if _, err := lockConn.Exec(unlockCtx, "SELECT pg_advisory_unlock($1)", lockKey); err != nil {
+			t.Errorf("release lifecycle-insert advisory lock: %v", err)
+		}
+	}()
+	if _, err := db.Pool.Exec(ctx, fmt.Sprintf(`CREATE FUNCTION block_plan_lifecycle_insert() RETURNS trigger
+		LANGUAGE plpgsql AS $body$ BEGIN PERFORM pg_advisory_xact_lock(%d); RETURN NEW; END $body$`, lockKey)); err != nil {
+		t.Fatalf("create lifecycle insert blocker: %v", err)
+	}
+	if _, err := db.Pool.Exec(ctx, `CREATE TRIGGER block_plan_lifecycle_insert
+		BEFORE INSERT ON plan_lifecycles FOR EACH ROW EXECUTE FUNCTION block_plan_lifecycle_insert()`); err != nil {
+		t.Fatalf("install lifecycle insert blocker: %v", err)
+	}
+
+	type submitResult struct {
+		binding plantasks.DelegationBinding
+		err     error
+	}
+	completed := make(chan submitResult, 1)
+	go func() {
+		binding, err := service.Submit(ctx, raw)
+		completed <- submitResult{binding: binding, err: err}
+	}()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var blocked bool
+		if err := db.Pool.QueryRow(ctx, `SELECT EXISTS (
+			SELECT 1 FROM pg_stat_activity
+			WHERE query ILIKE '%INSERT INTO plan_lifecycles%'
+			AND wait_event_type='Lock' AND wait_event='advisory'
+		)`).Scan(&blocked); err != nil {
+			t.Fatalf("observe blocked lifecycle insert: %v", err)
+		}
+		if blocked {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("delegation submit never reached the blocked lifecycle insert")
+		}
+		select {
+		case result := <-completed:
+			t.Fatalf("delegation submit completed before lifecycle insert block: binding=%+v err=%v", result.binding, result.err)
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+
+	manual.Set(expiry)
+	if _, err := lockConn.Exec(ctx, "SELECT pg_advisory_unlock($1)", lockKey); err != nil {
+		t.Fatalf("release lifecycle-insert advisory lock: %v", err)
+	}
+	result := <-completed
+	if result.err != nil {
+		t.Fatalf("submit after expiry during lifecycle persistence: %v", result.err)
+	}
+	if result.binding.Status != plantasks.DelegationDenied || result.binding.State != nil || result.binding.LifecycleID != "" {
+		t.Fatalf("post-persistence expiry did not return terminal denial without lifecycle: %+v", result.binding)
+	}
+	bindingCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
+	if bindingCount != 1 || lifecycleCount != 0 || receiptCount != 0 {
+		t.Fatalf("post-persistence expiry retained lifecycle artifacts: binding=%d lifecycle=%d receipts=%d", bindingCount, lifecycleCount, receiptCount)
+	}
+	replay, err := service.Submit(ctx, raw)
+	if err != nil || replay.Status != plantasks.DelegationDenied || replay.Sequence != result.binding.Sequence {
+		t.Fatalf("expiry denial replay changed result: binding=%+v err=%v", replay, err)
+	}
+	if b, l, r := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID); b != 1 || l != 0 || r != 0 {
+		t.Fatalf("expiry denial replay changed durable rows: binding=%d lifecycle=%d receipts=%d", b, l, r)
+	}
+}
+
+func TestPlanDelegationClaimDeadlineCannotExceedExactRequestExpiry(t *testing.T) {
+	ctx := context.Background()
+	db := testutil.RequireDatabase(t)
+	if err := storage.Migrate(ctx, db.Pool); err != nil {
+		t.Fatalf("migrate delegation test schema: %v", err)
+	}
+	start := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
+	manual := clock.NewManual(start)
+	store := plantasksDelegationStore(t, db.Pool, manual)
+	auth := &plantasksDelegationAuthenticator{caller: "caller-example"}
+	service, err := plantasks.NewDelegations(store, auth, &plantasksDelegationPolicy{}, &plantasksDelegationInitialFactory{})
+	if err != nil {
+		t.Fatalf("construct delegations service: %v", err)
+	}
+	exactExpiry := start.Add(time.Hour + 123456789*time.Nanosecond)
+	for _, test := range []struct {
+		name       string
+		delegation string
+		claimUntil time.Time
+		wantError  bool
+	}{
+		{name: "equal to exact external expiry", delegation: "deadline-equal", claimUntil: exactExpiry},
+		{name: "one nanosecond beyond external expiry", delegation: "deadline-late", claimUntil: exactExpiry.Add(time.Nanosecond), wantError: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, request := plantasksDelegationRequest(t)
+			request.DelegationID = test.delegation
+			request.Spec.Envelope.ExpiresAt = exactExpiry
+			raw, err := plantasks.EncodeDeliveryV1Request(request)
+			if err != nil {
+				t.Fatalf("encode exact-expiry request: %v", err)
+			}
+			binding, err := service.Submit(ctx, raw)
+			if err != nil || binding.Status != plantasks.DelegationAdmitted || binding.State == nil {
+				t.Fatalf("submit request: binding=%+v err=%v", binding, err)
+			}
+			var authorTask plantasks.Task
+			for _, task := range binding.State.Tasks {
+				if task.Stage == plantasks.StageAuthor {
+					authorTask = task
+				}
+			}
+			if authorTask.ID == "" {
+				t.Fatalf("missing initial author task: %+v", binding.State.Tasks)
+			}
+			actor := plantasks.Provenance{ActorID: "author-1", ActorKind: "human", AuthoredAt: start}
+			actors := &plantasksTestAuthenticator{actor: actor}
+			claim := strings.Repeat("a", 40)
+			claims := &plantasksTestClaimVerifier{allowed: map[string]plantasksTestClaim{}}
+			claims.allow(authorTask.ID, claim, actor.ActorID)
+			runtime := &plantasksTestRuntimePolicy{lifecycleID: binding.LifecycleID,
+				taskIDs: map[string]bool{authorTask.ID: true}, actorIDs: map[string]bool{actor.ActorID: true}}
+			outcomes := &plantasksTestOutcomeVerifier{allowed: map[string]plantasks.Receipt{}}
+			adapter, err := plantasks.NewAdapter(store, claims, actors, runtime, outcomes)
+			if err != nil {
+				t.Fatalf("construct ordinary lifecycle adapter: %v", err)
+			}
+			err = adapter.Admit(ctx, binding.LifecycleID, authorTask.ID, claim, binding.State.Revision, test.claimUntil)
+			if test.wantError {
+				if err == nil {
+					t.Fatal("claim extending one nanosecond past exact external deadline was admitted")
+				}
+				after, loadErr := store.Load(ctx, binding.LifecycleID)
+				if loadErr != nil {
+					t.Fatalf("load lifecycle after over-deadline denial: %v", loadErr)
+				}
+				if after.Revision != binding.State.Revision || len(after.Claims) != 0 || len(after.Attempts) != 0 {
+					t.Fatalf("over-deadline denial mutated lifecycle: before=%+v after=%+v", binding.State, after)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("claim at exact external deadline was denied: %v", err)
+			}
+			after, loadErr := store.Load(ctx, binding.LifecycleID)
+			if loadErr != nil {
+				t.Fatalf("load lifecycle after exact-deadline admission: %v", loadErr)
+			}
+			if got := after.Claims[authorTask.ID].ExpiresAt; !got.Equal(exactExpiry) {
+				t.Fatalf("claim expiry = %s, want exact external expiry %s", got.Format(time.RFC3339Nano), exactExpiry.Format(time.RFC3339Nano))
+			}
+		})
+	}
+}
+
 func TestPlanDelegationAlreadyExpiredRequestDeniesBeforeFactoryOrLocalVerify(t *testing.T) {
 	ctx := context.Background()
 	db := testutil.RequireDatabase(t)
