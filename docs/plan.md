@@ -164,9 +164,9 @@ E6 integrates the complete lifecycle adapter with generic plan/apply/claim workf
 
 - [x] T6.0 PLAN: map frozen whole-lifecycle integration contract to service adapter  Owner: coordinator Est: 60m kind: plan stage: author delivery-gate: T6.0.R deps: [T1.19.R] blocked-by: [T1.19.R] acc: [Frozen wire-to-service mapping and five bounded implementation/review pairs documented; preserve standalone/product flow and generic tooling; no second scheduler or runtime activation]
   - Scope/contract: [docs/tasks/T6.0.md](tasks/T6.0.md).
-- [ ] T6.0.R Independently review and deliver the lifecycle adapter plan  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/13 blocked-by: [T6.0, T6.0.F1.R] acc: [exact-head plan acceptance, complete acyclic ownership/DAG and preserved wire/scope, guarded merge and actual landing verified]
+- [x] T6.0.R Independently review and deliver the lifecycle adapter plan  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/13 blocked-by: [T6.0, T6.0.F1.R] acc: [exact-head plan acceptance, complete acyclic ownership/DAG and preserved wire/scope, guarded merge and actual landing verified]
 - [x] T6.0.F1 Clarify admitted, denied and pending intent replay after blocking review  Owner: coordinator kind: agent stage: fix delivery-gate: T6.0.F1.R lane: agent blocked-by: [T6.0] acc: [Resolve finding D1 on PR13 head6d106de; admitted repeats observation, denied repeats403 without lifecycle, pending repeats durable intent503; no wire or implementation scope change]
-- [ ] T6.0.F1.R Independently re-review and deliver corrected adapter plan  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/13 blocked-by: [T6.0.F1] acc: [Exact corrected head acceptance and green CI; guarded merge and full landed verification; stable T6.0.R gate releases only after this delivery]
+- [x] T6.0.F1.R Independently re-review and deliver corrected adapter plan  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/13 blocked-by: [T6.0.F1] acc: [Exact corrected head acceptance and green CI; guarded merge and full landed verification; stable T6.0.R gate releases only after this delivery]
 - [ ] T6.1 Implement strict code-delivery v1 codec  Owner: coordinator Est: 90m kind: agent stage: author delivery-gate: T6.1.R lane: agent deps: [T6.0.R] blocked-by: [T6.0.R] acc: [Exact frozen canonical bytes/digest; strict bounded JSON, required fields/enums/graphs and opaque external identifiers; zero-cost schema without fabricated admission or settlement]
   - Scope/contract: [docs/tasks/T6.1.md](tasks/T6.1.md).
 - [ ] T6.1.R Independently review and deliver T6.1 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T6.1] acc: [exact-head independent acceptance, bounded explicit fix/re-review after blockers, guarded merge and actual landing verified]
@@ -327,9 +327,9 @@ These deferred planning waves are triggers, not a fixed calendar. Expansion inse
 
 #### Wave 21: E6 planning and implementation delivery gates
 
-- [ ] T6.0.R Scheduling reference; acceptance and scope are in the WBS.
+- [x] T6.0.R Scheduling reference; acceptance and scope are in the WBS.
 - [x] T6.0.F1 Scheduling reference; acceptance and scope are in the WBS.
-- [ ] T6.0.F1.R Scheduling reference; acceptance and scope are in the WBS.
+- [x] T6.0.F1.R Scheduling reference; acceptance and scope are in the WBS.
 - [ ] T6.1.R Scheduling reference; acceptance and scope are in the WBS.
 - [ ] T6.2.R Scheduling reference; acceptance and scope are in the WBS.
 - [ ] T6.3.R Scheduling reference; acceptance and scope are in the WBS.
@@ -507,3 +507,5 @@ T6.0 author handoff: PR13 contains the mapping and five bounded author/review co
 T6.0.R negative review D1 on PR13 head6d106de: replay wording incorrectly promised a lifecycle for denied/pending intent. Explicit T6.0.F1 correction and dependent T6.0.F1.R are required; stable T6.0.R remains blocked and releases no downstream coding until corrected review verifies landing.
 
 T6.0.F1 author handoff: PR13 corrects D1 by explicitly separating ADMITTED observation replay, terminal DENIED/no lifecycle replay and unresolved INTENT/503 serialized decision. Wire and implementation scope remain unchanged; dependent T6.0.F1.R must accept the corrected exact head and verify actual landing before stable T6.0.R delivery.
+
+T6.0.F1.R verified delivery: independent re-review accepted PR13 exact head1970a32536f2a415c4b265bb31520f26676be7a7/tree6a69b014cf6a4dd11c405a20da91ddef9cf601ee against base5bb75568c60d26800dbfd7cac2be669f23391b25. Final-head CI37155380986 passed315normal/315race zero failures/skips. Guarded rebase landed73098182e2985a0a4d662a3617e4311a9e8ce907; reviewer and coordinator fetched main, verified full tree equality and base ancestry, released review claim. D1 is resolved; stable T6.0.R delivered and T6.1 may be claimed. This is plan delivery, not running adapter or live interoperability evidence.
