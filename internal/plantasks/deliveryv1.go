@@ -851,7 +851,7 @@ func deliveryV1ValidURLSegment(segment string) bool {
 		return false
 	}
 	for _, character := range segment {
-		if character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || character >= '0' && character <= '9' || strings.ContainsRune("-_", character) {
+		if character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || character >= '0' && character <= '9' || strings.ContainsRune("-_.", character) {
 			continue
 		}
 		return false
