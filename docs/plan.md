@@ -192,7 +192,7 @@ Trigger: Dependency planning-task completion alone never permits downstream codi
 - [ ] T8.3 Verify supervisor process ownership integration  Owner: coordinator kind: agent stage: verify lane: agent blocked-by: [T8.1.R2, T1.16.R]  acc: [reservation before launch, exact trusted ownership identity, bounded shutdown, unknown retains capacity, only proven reaped releases]
 - [ ] T8.4 Verify corrected foundation and publish PR  Owner: coordinator  kind: agent stage: verify lane: agent blocked-by: [T8.2, T8.3]  acc: [real database/process boundary regressions, required checks and PR handoff]
 - [ ] T8.5 Independently review and land process reservation correction  Owner: independent-reviewer  kind: agent stage: review lane: agent blocked-by: [T8.4]  acc: [exact PR head accepted, guarded merge and actual landed verification]
-- [ ] T8.6 Route outbox work by owner and bind cancellation to exact runs  Owner: control-routing kind: agent stage: author delivery-gate: T8.6.R lane: agent blocked-by: [T1.9, T1.11, T8.1.R2] acc: [dispatcher never consumes LABEL_SYNC; router/control cancel intents capture original task/job/run before revocation; no task-only or persisted-PID cancellation; real PostgreSQL regression and corrective handoff]
+- [x] T8.6 Route outbox work by owner and bind cancellation to exact runs  Owner: control-routing kind: agent stage: author delivery-gate: T8.6.R lane: agent blocked-by: [T1.9, T1.11, T8.1.R2] acc: [dispatcher never consumes LABEL_SYNC; router/control cancel intents capture original task/job/run before revocation; no task-only or persisted-PID cancellation; real PostgreSQL regression and corrective handoff]
 - [ ] T8.6.R Independently review and deliver outbox ownership correction  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T8.6] acc: [exact-head independent acceptance, guarded merge and verified actual landing]
 
 ## 5. Parallel Work and Waves
@@ -287,7 +287,7 @@ These deferred planning waves are triggers, not a fixed calendar. Expansion inse
 - [ ] T8.3 Scheduling reference; acceptance and scope are in the WBS.
 - [ ] T8.4 Scheduling reference; acceptance and scope are in the WBS.
 - [ ] T8.5 Scheduling reference; acceptance and scope are in the WBS.
-- [ ] T8.6 Scheduling reference; acceptance and scope are in the WBS.
+- [x] T8.6 Scheduling reference; acceptance and scope are in the WBS.
 - [ ] T8.6.R Scheduling reference; acceptance and scope are in the WBS.
 
 #### Wave 19: Independent E1 delivery gates
@@ -452,3 +452,5 @@ T1.16.R delivered: independent review accepted PR7 exactheadce860ac3c4ad81ea9035
 T1.15.R delivered: independently accepted PR8 head79e0cad668809820ede61acfaa95267f57b39fce against reviewed basec703bdc263653873a7493cab6de0efbd34e4c781. Shared-account review comment https://github.com/ajent-social/APRL/pull/8#issuecomment-5971079936 records the verdict; it is not a formal GitHub APPROVED review. Guarded ordinary rebase merged as286fa1b945da357c1524ea6f3e5838de54f2dc01; reviewed base is an ancestor of main and landed tree d8b0c9118d5d30facf0e18a58253e4417e28bd0f exactly matches the reviewed candidate. GitHub reports dndungu as merger. No hosted checks or live provider/GitHub mutations are claimed. Exact review claim0ba1b0e22daa86679247a5796d4cfe9bf247ca67 released after verification. E1 delivered count16/19.
 
 T8.6 pre-handoff correction: independent source pre-review identified uncleared router lease fields; author fixed atomic clearing and added real-DB leased-run/UNKNOWN-hold/exact-cancel-target coverage. Full composition exposed an older paused-webhook result expectation; the directly affected API regression now requires409 stale_result and retains TERMINATED/CANCELLED/UNKNOWN with no replies, rather than relaxing result authentication. Formal T8.6.R review still starts after the PR handoff. Startup integration verification T8.2 also waits for T1.17.R so a recovery callback alone is not claimed as assembled startup evidence.
+
+T8.6 author qualification: production build passed; final source4cbfb0f passed286 regular and286 race test cases with zero skipped tests, whole-module vet/lint and seven owned Go-file formatting/import checks. Captured cancellation run binding and paired router lease-clearing mutations each genuinely failed their real-DB assertions; exact restoration passed. Independent pre-handoff source review found no remaining blockers. Formal T8.6.R acceptance and verified landing remain mandatory; no production cancellation transport activation. E1 verified delivery is16/19; T1.17-T1.19 remain pending.
