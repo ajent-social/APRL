@@ -21,3 +21,6 @@ func ReadPlanTasks() ([]byte, error) { return source.ReadFile("002_plan_tasks.sq
 
 // ReadProcessHolds returns the durable process reservation migration.
 func ReadProcessHolds() ([]byte, error) { return source.ReadFile("003_process_holds.sql") }
+
+// ReadDelegations returns the durable caller-scoped delegation binding migration.
+func ReadDelegations() ([]byte, error) { return source.ReadFile("004_delegations.sql") }
