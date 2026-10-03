@@ -22,7 +22,7 @@ CREATE TABLE plan_delegations (
     max_attempts BIGINT NOT NULL CHECK (max_attempts > 0),
     expires_at_exact TEXT NOT NULL,
     status TEXT NOT NULL CHECK (status IN ('intent', 'denied', 'admitted', 'cancelled')),
-    authorization JSONB CHECK (authorization IS NULL OR jsonb_typeof(authorization) = 'object'),
+    admission_decision JSONB CHECK (admission_decision IS NULL OR jsonb_typeof(admission_decision) = 'object'),
     lifecycle_id UUID UNIQUE REFERENCES plan_lifecycles(id),
     lifecycle_revision BIGINT CHECK (lifecycle_revision IS NULL OR lifecycle_revision >= 0),
     observation_sequence BIGINT NOT NULL CHECK (observation_sequence > 0),

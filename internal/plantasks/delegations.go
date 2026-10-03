@@ -300,7 +300,7 @@ func (d *Delegations) persistIntent(ctx context.Context, callerID string, reques
 }
 
 func scanDelegation(ctx context.Context, tx pgx.Tx, callerID, delegationID string, forUpdate bool) (DelegationBinding, error) {
-	query := `SELECT request_bytes, request_digest, request_scope, max_attempts, max_concurrent, expires_at_exact, status, COALESCE(authorization, 'null'::jsonb), COALESCE(lifecycle_id::text,''), COALESCE(lifecycle_revision,-1), observation_sequence, cancelled
+	query := `SELECT request_bytes, request_digest, request_scope, max_attempts, max_concurrent, expires_at_exact, status, COALESCE(admission_decision, 'null'::jsonb), COALESCE(lifecycle_id::text,''), COALESCE(lifecycle_revision,-1), observation_sequence, cancelled
 		FROM plan_delegations WHERE caller_id=$1 AND delegation_id=$2`
 	if forUpdate {
 		query += ` FOR UPDATE`
@@ -446,7 +446,7 @@ func (d *Delegations) finishDecision(ctx context.Context, callerID string, reque
 		if err != nil {
 			return DelegationBinding{}, fmt.Errorf("encode denied delegation decision: %w", ErrDelegationUnavailable)
 		}
-		tag, err := tx.Exec(ctx, `UPDATE plan_delegations SET status='denied', authorization=$3::jsonb, observation_sequence=observation_sequence+1, updated_at=CURRENT_TIMESTAMP
+		tag, err := tx.Exec(ctx, `UPDATE plan_delegations SET status='denied', admission_decision=$3::jsonb, observation_sequence=observation_sequence+1, updated_at=CURRENT_TIMESTAMP
 			WHERE caller_id=$1 AND delegation_id=$2 AND status='intent' AND cancelled=FALSE`, callerID, request.DelegationID, encodedAuthorization)
 		if err != nil || tag.RowsAffected() != 1 {
 			return DelegationBinding{}, fmt.Errorf("persist denied delegation: %w", ErrDelegationUnavailable)
@@ -491,7 +491,7 @@ func (d *Delegations) finishDecision(ctx context.Context, callerID string, reque
 			if err != nil {
 				return DelegationBinding{}, fmt.Errorf("encode expired delegation decision: %w", ErrDelegationUnavailable)
 			}
-			tag, err := tx.Exec(ctx, `UPDATE plan_delegations SET status='denied', authorization=$3::jsonb, observation_sequence=observation_sequence+1, updated_at=CURRENT_TIMESTAMP
+			tag, err := tx.Exec(ctx, `UPDATE plan_delegations SET status='denied', admission_decision=$3::jsonb, observation_sequence=observation_sequence+1, updated_at=CURRENT_TIMESTAMP
 				WHERE caller_id=$1 AND delegation_id=$2 AND status='intent' AND cancelled=FALSE`, callerID, request.DelegationID, encodedAuthorization)
 			if err != nil || tag.RowsAffected() != 1 {
 				return DelegationBinding{}, fmt.Errorf("persist expiry denial: %w", ErrDelegationUnavailable)
@@ -504,7 +504,7 @@ func (d *Delegations) finishDecision(ctx context.Context, callerID string, reque
 			if err != nil {
 				return DelegationBinding{}, fmt.Errorf("encode admitted delegation decision: %w", ErrDelegationUnavailable)
 			}
-			tag, err := tx.Exec(ctx, `UPDATE plan_delegations SET status='admitted', authorization=$3::jsonb, lifecycle_id=$4::uuid, lifecycle_revision=$5, observation_sequence=observation_sequence+1, updated_at=CURRENT_TIMESTAMP
+			tag, err := tx.Exec(ctx, `UPDATE plan_delegations SET status='admitted', admission_decision=$3::jsonb, lifecycle_id=$4::uuid, lifecycle_revision=$5, observation_sequence=observation_sequence+1, updated_at=CURRENT_TIMESTAMP
 				WHERE caller_id=$1 AND delegation_id=$2 AND status='intent' AND cancelled=FALSE`, callerID, request.DelegationID, encodedAuthorization, initial.Lifecycle.ID, initial.Revision)
 			if err != nil || tag.RowsAffected() != 1 {
 				return DelegationBinding{}, fmt.Errorf("persist admitted delegation: %w", ErrDelegationUnavailable)
