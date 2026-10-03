@@ -88,3 +88,5 @@ Durable process hold source qualification (2026-10-03): integration source67e091
 Process reservation correction qualification: source9b7c6bf passed full-module build, 253 regular and 253 race test events with zero skips/failures, vet and lint. RESERVED→STARTED bypass is denied at both store and SQL boundary; BeginStart fixtures now consume launch permission. UNKNOWN reason changes increment revision without reopening or clearing identity, and identical observations are idempotent. PR5 remains subject to fresh independent re-review.
 
 The corrective direct-publication regression genuinely failed when only the SQL RESERVED→STARTED guard was relaxed, with the expected database-bypass assertion; exact migration restoration passed. Owned format/import diffs remain empty.
+
+Broker source-head correction: sourcee0d1072 passed27 actual targeted race test events with zero skips/failures, affected vet and lint. Exact reviewed PR source head is mandatory on confirmed merge Execute/Lookup. A source-head-only mutation genuinely failed mismatch regression; restored source passed. Independent corrective PR review/landing remains required.

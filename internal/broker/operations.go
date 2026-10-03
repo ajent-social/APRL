@@ -144,7 +144,7 @@ type RemoteReview struct {
 // RemoteReceipt records the authoritative remote outcome for a mutation.
 type RemoteReceipt struct {
 	RemoteID string `json:"remote_id,omitempty"` // RemoteID is the host's resulting object identity.
-	HeadSHA  string `json:"head_sha,omitempty"`  // HeadSHA is the commit confirmed by the host.
+	HeadSHA  string `json:"head_sha,omitempty"`  // HeadSHA is the source PR head confirmed by the host, not a resulting merge commit.
 	Merged   bool   `json:"merged,omitempty"`    // Merged reports an authoritative successful merge.
 }
 
@@ -879,7 +879,11 @@ func (s *Service) perform(ctx context.Context, operationID string, remote Remote
 	bounded, cancel := context.WithTimeout(ctx, s.config.RPCTimeout)
 	receipt, callErr := s.transport.Execute(bounded, remote)
 	cancel()
-	if callErr == nil && !remoteOutcomeMatches(remote.Action, remote.HeadSHA, receipt) {
+	expectedHead := remote.HeadSHA
+	if remote.Action == ActionMerge {
+		expectedHead = remote.ExpectedHeadSHA
+	}
+	if callErr == nil && !remoteOutcomeMatches(remote.Action, expectedHead, receipt) {
 		callErr = ErrUnknown
 	}
 	status, remoteID := "CONFIRMED", receipt.RemoteID
@@ -946,7 +950,7 @@ func remoteOutcomeMatches(action Action, expectedHead string, receipt RemoteRece
 	case ActionPush, ActionPublish:
 		return expectedHead != "" && receipt.HeadSHA == expectedHead
 	case ActionMerge:
-		return receipt.Merged
+		return receipt.Merged && expectedHead != "" && receipt.HeadSHA == expectedHead
 	default:
 		return true
 	}
