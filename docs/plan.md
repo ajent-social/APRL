@@ -124,7 +124,7 @@ Acceptance: T1.1-T1.19 pass on owned test services; a signed event completes thr
   - S1.17.1 Verify: Stop a required backing service and assert readiness 503 while liveness remains 200. Run the scoped tests, then formatter/linter checks after code changes.
 - [x] T1.18 Prove the foundation crash/cancellation vertical slice  Owner: coordinator  Est: 90m  kind: agent stage: author delivery-gate: T1.18.R  verifies: [UC-005, UC-007, UC-008, UC-010]  deps: [T1.17.R]  acc: [Real Postgres/Redis plus fake GitHub/inference execute signed receipt -> routing -> dispatch -> lease -> result; restart at each seam, Redis loss, duplicate delivery, stale result, budget race, pause, and ambiguous write all satisfy invariants. No live agents or merges enabled.]  lane: agent  blocked-by: [T1.17.R]
   - Scope/contract: [docs/tasks/T1.18.md](tasks/T1.18.md); exact owned files and verification commands are listed there.
-- [ ] T1.18.R Independently review and deliver T1.18 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/11 blocked-by: [T1.18] acc: [exact-head independent acceptance, guarded merge and actual landing verified]
+- [x] T1.18.R Independently review and deliver T1.18 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/11 blocked-by: [T1.18] acc: [exact-head independent acceptance, guarded merge and actual landing verified]
   - S1.18.1 Verify: Disable the generation guard in an owned test worktree and observe the stale-result regression fail; restore and report both outcomes. Run the scoped tests, then formatter/linter checks after code changes.
 - [ ] T1.19 Install scoped quality gates and record foundation handoff  Owner: coordinator  Est: 60m  kind: agent stage: author delivery-gate: T1.19.R  verifies: [infrastructure, UC-008]  deps: [T1.18.R]  acc: [CI runs gofmt/goimports, go vet, golangci-lint and unit/API/integration/system tests with real service fixtures and no silent integration skips; unsupported paid-execution capability stays disabled; record exact green commands and all pending live integration prerequisites. The CI workflow provisions owned Postgres/Redis service fixtures, sets required URLs, verifies executed test counts, and serializes the full-suite race lane.]  blocked-by: [T1.18.R]  lane: agent
   - Scope/contract: [docs/tasks/T1.19.md](tasks/T1.19.md); exact owned files and verification commands are listed there.
@@ -299,7 +299,7 @@ These deferred planning waves are triggers, not a fixed calendar. Expansion inse
 - [x] T1.16.R Scheduling reference; acceptance and scope are in the WBS.
 
 - [x] T1.17.R Scheduling reference; acceptance and scope are in the WBS.
-- [ ] T1.18.R Scheduling reference; acceptance and scope are in the WBS.
+- [x] T1.18.R Scheduling reference; acceptance and scope are in the WBS.
 - [ ] T1.19.R Scheduling reference; acceptance and scope are in the WBS.
 
 #### Wave 20: Caller protocol integration after E1 delivery
@@ -464,3 +464,5 @@ T1.17 author handoff: PR10 contains the combined implementation and separate tes
 T1.17.R verified delivery: independent review accepted PR10 exact head ac48a6cb against base e9d7245; shared-account COMMENT recorded. Guarded ordinary rebase landed 752014f01e6ffc31fda8a935fc57d1e384586d50 with reviewed whole tree 1fdedcce0518899fd93de3f557d8e59dffd74fe3 and verified base ancestry. No hosted checks exist yet; local 309 normal/309 race tests and compiler checks are the bounded qualification. Downstream T1.18 may now claim.
 
 T1.18 author handoff: PR11 contains six owned-service system cases and test-only native identity helpers. Local verification passed315normal/315race terminal test events, zero skips, build/vet/lint/five-file formatting and stale HTTP negative-control failure/exact-restoration pass. Successful execution retains unverified usage UNKNOWN; native group drain does not imply provider settlement. T1.18.R remains open and downstream delivery remains blocked until exact-head independent acceptance, guarded merge and verified landing. Production host inventory and Linux hosted qualification remain pending.
+
+T1.18.R verified delivery: independent review accepted PR11 exact head6b68ead471a2b90044ffff6f43d1c13f4a3dd703 against base752014f, recorded a truthful shared-account COMMENT, and guarded rebase landed0728071d333cbb9daf9b73c633711c9c3539d309. Actual main has reviewed whole tree69ad59c9a10abd2c283202b350fe76eba68fbdda and verified base ancestry; review claim released. Local315normal/315race events, zero skips qualify the owned fixtures; hosted Linux and production host/provider evidence remain pending. T1.19 may now claim.
