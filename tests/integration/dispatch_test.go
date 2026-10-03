@@ -89,7 +89,7 @@ func TestDispatch(t *testing.T) {
 		if count, err := d.DispatchDue(f.ctx, 1); err != nil || count != 1 {
 			t.Fatalf("due row dispatch = (%d,%v), want one", count, err)
 		}
-		for _, kind := range []string{"CANCEL", "LABEL_SYNC", "NOTIFY"} {
+		for _, kind := range []string{"CANCEL", "NOTIFY"} {
 			jobID := f.addJob(t, "author")
 			outboxID := f.addOutbox(t, jobID, kind, `{"job_id":"`+jobID+`"}`, f.clock.Now())
 			if count, err := d.DispatchDue(f.ctx, 1); count != 1 || !errors.Is(err, dispatch.ErrNoHandler) {
@@ -106,6 +106,34 @@ func TestDispatch(t *testing.T) {
 			if _, err := f.db.Pool.Exec(f.ctx, `UPDATE outbox SET next_attempt_at=$2 WHERE id=$1::uuid`, outboxID, f.clock.Now().Add(24*time.Hour)); err != nil {
 				t.Fatal(err)
 			}
+		}
+	})
+
+	t.Run("label_sync_remains_unclaimed_for_reconciliation", func(t *testing.T) {
+		f := newDispatchTestFixture(t)
+		jobID := f.addJob(t, "author")
+		labelID := f.addOutbox(t, jobID, "LABEL_SYNC", `{"task_id":"`+f.taskID+`"}`, f.clock.Now())
+		dispatchID := f.addOutbox(t, jobID, "DISPATCH", `{"job_id":"`+jobID+`"}`, f.clock.Now())
+		d := dispatchTestNewDispatcher(t, f, f.streams)
+		if count, err := d.DispatchDue(f.ctx, 1); err != nil || count != 1 {
+			t.Fatalf("eligible dispatch with label pending=(%d,%v), want one published dispatch", count, err)
+		}
+		var labelAttempts int32
+		var labelPublished *time.Time
+		if err := f.db.Pool.QueryRow(f.ctx, `SELECT attempt_count,published_at FROM outbox WHERE id=$1::uuid`, labelID).Scan(&labelAttempts, &labelPublished); err != nil {
+			t.Fatal(err)
+		}
+		var dispatchPublished *time.Time
+		if err := f.db.Pool.QueryRow(f.ctx, `SELECT published_at FROM outbox WHERE id=$1::uuid`, dispatchID).Scan(&dispatchPublished); err != nil {
+			t.Fatal(err)
+		}
+		if labelAttempts != 0 || labelPublished != nil || dispatchPublished == nil {
+			t.Fatalf("dispatcher label=(attempts %d,published %v), eligible dispatch published=%v", labelAttempts, labelPublished, dispatchPublished)
+		}
+		if _, err := dispatch.NewDispatcher(f.db.Pool, f.clock, f.streams, map[string]dispatch.Handler{
+			"LABEL_SYNC": func(context.Context, dispatch.OutboxItem) error { return nil },
+		}); !errors.Is(err, dispatch.ErrInvalid) {
+			t.Fatalf("LABEL_SYNC callback registration error=%v, want ErrInvalid", err)
 		}
 	})
 

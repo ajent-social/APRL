@@ -213,6 +213,50 @@ func TestControlsPauseAuthorizationOutageAndLabelRemoval(t *testing.T) {
 	if cancels != 1 || labels != 2 || actions != 1 {
 		t.Fatalf("durable pause evidence cancel=%d label=%d action=%d", cancels, labels, actions)
 	}
+	var payload []byte
+	if err := f.db.Pool.QueryRow(f.ctx, `SELECT payload FROM outbox WHERE task_id=$1::uuid AND job_id=$2::uuid AND kind='CANCEL'`, f.taskID, jobID).Scan(&payload); err != nil {
+		t.Fatal(err)
+	}
+	var cancelTarget struct {
+		TaskID string `json:"task_id"`
+		JobID  string `json:"job_id"`
+		RunID  string `json:"run_id"`
+	}
+	if err := json.Unmarshal(payload, &cancelTarget); err != nil {
+		t.Fatal(err)
+	}
+	if cancelTarget.TaskID != f.taskID || cancelTarget.JobID != jobID || cancelTarget.RunID != lease.RunID {
+		t.Fatalf("pause cancellation target=%+v, want original task/job/run", cancelTarget)
+	}
+
+	// A later resume creates a replacement job/run, but the delayed cancellation
+	// remains bound to the original run captured before pause revoked it.
+	controlWithTask(t, f, func(ctx context.Context, repos *storage.Repositories, budget storage.LockedOrgBudget, locked storage.LockedTask) error {
+		_, err := control.ResumeLocked(ctx, repos, budget, locked, f.clock, control.ResumeRequest{Authority: controlAuthority(f), Remote: controlRemote(f), Policy: controlPolicy(), Reason: "operator resume"})
+		return err
+	})
+	var replacementJobID string
+	logicalKey := fmt.Sprintf("task:%s:generation:2:ci_reconcile", f.taskID)
+	if err := f.db.Pool.QueryRow(f.ctx, `SELECT id::text FROM jobs WHERE task_id=$1::uuid AND logical_key=$2 AND status='PENDING'`, f.taskID, logicalKey).Scan(&replacementJobID); err != nil {
+		t.Fatal(err)
+	}
+	replacement, err := leases.Claim(f.ctx, f.db.Pool, f.clock, leases.ClaimRequest{TaskID: f.taskID, JobID: replacementJobID, TTL: time.Hour, AgentType: "A", PromptHash: fmt.Sprintf("%064x", 2), SupervisorIdentity: "control-test-supervisor", CredentialID: "control-test-credential"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replacement.RunID == lease.RunID {
+		t.Fatal("replacement job reused the original run ID")
+	}
+	var replayed []byte
+	if err := f.db.Pool.QueryRow(f.ctx, `SELECT payload FROM outbox WHERE task_id=$1::uuid AND job_id=$2::uuid AND kind='CANCEL'`, f.taskID, jobID).Scan(&replayed); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(replayed, &cancelTarget); err != nil {
+		t.Fatal(err)
+	}
+	if cancelTarget.RunID != lease.RunID || cancelTarget.RunID == replacement.RunID {
+		t.Fatalf("delayed cancellation retargeted replacement: %+v replacement=%s", cancelTarget, replacement.RunID)
+	}
 }
 
 func TestControlsResumeRefreshesSnapshotAndPreservesAccounting(t *testing.T) {

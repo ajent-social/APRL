@@ -7,8 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ajent-social/APRL/internal/budget"
 	"github.com/ajent-social/APRL/internal/clock"
 	"github.com/ajent-social/APRL/internal/contracts"
+	"github.com/ajent-social/APRL/internal/leases"
+	"github.com/ajent-social/APRL/internal/processholds"
 	"github.com/ajent-social/APRL/internal/router"
 	"github.com/ajent-social/APRL/internal/storage"
 	"github.com/ajent-social/APRL/tests/testutil"
@@ -280,6 +283,13 @@ func TestRouterUnexpectedPushPauseAndTerminal(t *testing.T) {
 	if state != "PAUSED" || generation != 2 || jobs != 0 || outbox != 0 {
 		t.Fatalf("paused observation escaped state state=%s gen=%d jobs=%d outbox=%d", state, generation, jobs, outbox)
 	}
+	// A pending job has no process run. Cancellation must still carry an
+	// explicit empty run_id, so an asynchronous consumer cannot infer a newer run.
+	pendingJobID := "72000000-0000-4000-8000-000000000001"
+	pendingJob := contracts.Job{Version: 1, TaskID: taskID, JobID: pendingJobID, Generation: 2, Snapshot: contracts.Snapshot{HeadSHA: routerHead1, BaseSHA: routerBase1}, Attempt: 1, OperationID: "72000000-0000-4000-8000-000000000002", CorrelationID: "72000000-0000-4000-8000-000000000003", Operation: "ci_reconcile"}
+	if _, err := f.pool.Pool.Exec(f.ctx, `INSERT INTO jobs(id,task_id,pr_id,logical_key,operation_type,generation,expected_head_sha,expected_base_sha,payload) SELECT $1::uuid,t.id,pr.id,'router-pending-cancel','ci_reconcile',2,$3,$4,$5::jsonb FROM tasks t JOIN prs pr ON pr.task_id=t.id WHERE t.id=$2::uuid`, pendingJobID, taskID, routerHead1, routerBase1, routerJSON(t, pendingJob)); err != nil {
+		t.Fatal(err)
+	}
 
 	closed := []byte(`{"action":"closed","repository":{"full_name":"owner/pause"},"pull_request":{"number":12,"merged":false}}`)
 	routerStoreDelivery(t, f, "router-close", "pull_request", closed)
@@ -290,6 +300,21 @@ func TestRouterUnexpectedPushPauseAndTerminal(t *testing.T) {
 	if state != "CLOSED" || generation != 3 {
 		t.Fatalf("close did not reach terminal state: %s generation=%d", state, generation)
 	}
+	var cancellation []byte
+	if err := f.pool.Pool.QueryRow(f.ctx, `SELECT payload FROM outbox WHERE task_id=$1::uuid AND job_id=$2::uuid AND kind='CANCEL'`, taskID, pendingJobID).Scan(&cancellation); err != nil {
+		t.Fatal(err)
+	}
+	var target struct {
+		TaskID string `json:"task_id"`
+		JobID  string `json:"job_id"`
+		RunID  string `json:"run_id"`
+	}
+	if err := json.Unmarshal(cancellation, &target); err != nil {
+		t.Fatal(err)
+	}
+	if target.TaskID != taskID || target.JobID != pendingJobID || target.RunID != "" {
+		t.Fatalf("pending cancellation target=%+v, want task/job and explicit empty run", target)
+	}
 	reopenedSnapshot := []byte(`{"action":"synchronize","repository":{"full_name":"owner/pause"},"sender":{"id":44,"type":"User"},"pull_request":{"number":12,"user":{"id":44,"type":"User"},"head":{"sha":"` + routerHead1 + `","ref":"human/topic"},"base":{"sha":"` + routerBase1 + `","ref":"main"}}}`)
 	routerStoreDelivery(t, f, "router-terminal-observation", "pull_request", reopenedSnapshot)
 	if err := f.router.RouteDelivery(f.ctx, "router-terminal-observation"); err != nil {
@@ -298,6 +323,119 @@ func TestRouterUnexpectedPushPauseAndTerminal(t *testing.T) {
 	state, generation = routerTaskState(t, f, taskID)
 	if state != "CLOSED" || generation != 3 {
 		t.Fatalf("terminal task reopened: %s generation=%d", state, generation)
+	}
+}
+
+func TestRouterCancelClearsLeaseAndRetainsUnknownRunBinding(t *testing.T) {
+	f := routerRequireDB(t, "owner/cancel-run", "router-org-cancel-run", false)
+	taskID := routerTask(t, f, "owner/cancel-run", "github-pr:99", "44", "IN_REVIEW")
+	prID := routerSeedPR(t, f, taskID, "owner/cancel-run", 99, routerHead0, routerBase0)
+	jobID := "73000000-0000-4000-8000-000000000001"
+	job := contracts.Job{
+		Version: contracts.VersionV1, TaskID: taskID, JobID: jobID, Generation: 0,
+		Snapshot: contracts.Snapshot{HeadSHA: routerHead0, BaseSHA: routerBase0}, Attempt: 1,
+		OperationID: "73000000-0000-4000-8000-000000000002", CorrelationID: "73000000-0000-4000-8000-000000000003", Operation: "author",
+	}
+	if _, err := f.pool.Pool.Exec(f.ctx, `INSERT INTO jobs(id,task_id,pr_id,logical_key,operation_type,generation,expected_head_sha,expected_base_sha,payload)
+		VALUES($1::uuid,$2::uuid,$3,'router-cancel-active-run','author',0,$4,$5,$6::jsonb)`, jobID, taskID, prID, routerHead0, routerBase0, routerJSON(t, job)); err != nil {
+		t.Fatal(err)
+	}
+	lease, err := leases.Claim(f.ctx, f.pool.Pool, f.clock, leases.ClaimRequest{
+		TaskID: taskID, JobID: jobID, TTL: time.Hour, AgentType: "A", PromptHash: fmt.Sprintf("%064x", 99),
+		SupervisorIdentity: "router-cancel-test-supervisor", CredentialID: "router-cancel-test-credential",
+	})
+	if err != nil {
+		t.Fatalf("claim active author run: %v", err)
+	}
+	reservation, err := budget.Reserve(f.ctx, f.pool.Pool, f.clock, lease, budgetEnvelope(1000))
+	if err != nil {
+		t.Fatalf("reserve active run budget: %v", err)
+	}
+	holds, err := processholds.NewStore(f.pool.Pool, f.clock, processholds.Config{
+		ResourceScope: "router-cancel-test-pool", MaxActive: 1, VerifierTimeout: time.Second,
+	}, processholdsFixtureVerifier{now: f.clock.Now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hold, err := holds.Reserve(f.ctx, lease, "/owned/router-cancel-workspace", "router-cancel-test-supervisor")
+	if err != nil {
+		t.Fatalf("reserve process hold: %v", err)
+	}
+	if hold.RunID != lease.RunID || hold.Generation != lease.Generation {
+		t.Fatalf("process hold=%+v, want original lease identity", hold)
+	}
+	if _, err := holds.BeginStart(f.ctx, lease); err != nil {
+		t.Fatalf("persist launch intent: %v", err)
+	}
+	process := processholds.ProcessIdentity{PID: 413, PGID: 410, StartIdentity: "router-test-boot/process-start-413"}
+	if _, err := holds.Started(f.ctx, lease.RunID, process); err != nil {
+		t.Fatalf("record process identity: %v", err)
+	}
+	unknown, err := holds.Unknown(f.ctx, lease.RunID, processholds.ReasonSupervisorLost)
+	if err != nil {
+		t.Fatalf("retain unresolved process hold: %v", err)
+	}
+	var beforeStatus, beforeToken string
+	var beforeGeneration int64
+	var beforeExpires time.Time
+	if err := f.pool.Pool.QueryRow(f.ctx, `SELECT status,lease_token::text,lease_expires_at,generation FROM jobs WHERE id=$1::uuid`, jobID).
+		Scan(&beforeStatus, &beforeToken, &beforeExpires, &beforeGeneration); err != nil {
+		t.Fatal(err)
+	}
+	if beforeStatus != "LEASED" || beforeToken != lease.Token || beforeExpires.IsZero() || beforeGeneration != lease.Generation {
+		t.Fatalf("pre-cancellation job status=%s token=%s expiry=%v generation=%d, want active lease", beforeStatus, beforeToken, beforeExpires, beforeGeneration)
+	}
+
+	closed := []byte(`{"action":"closed","repository":{"full_name":"owner/cancel-run"},"pull_request":{"number":99,"merged":false}}`)
+	routerStoreDelivery(t, f, "router-cancel-active-run-close", "pull_request", closed)
+	if err := f.router.RouteDelivery(f.ctx, "router-cancel-active-run-close"); err != nil {
+		t.Fatalf("route close with active uncertain run: %v", err)
+	}
+	var afterStatus, afterToken string
+	var afterExpires *time.Time
+	if err := f.pool.Pool.QueryRow(f.ctx, `SELECT status,COALESCE(lease_token::text,''),lease_expires_at FROM jobs WHERE id=$1::uuid`, jobID).
+		Scan(&afterStatus, &afterToken, &afterExpires); err != nil {
+		t.Fatal(err)
+	}
+	if afterStatus != "CANCELLED" || afterToken != "" || afterExpires != nil {
+		t.Fatalf("cancelled job retained lease status=%s token=%q expires=%v", afterStatus, afterToken, afterExpires)
+	}
+	var runStatus string
+	var runGeneration int64
+	if err := f.pool.Pool.QueryRow(f.ctx, `SELECT execution_status,generation FROM agent_runs WHERE id=$1::uuid`, lease.RunID).Scan(&runStatus, &runGeneration); err != nil {
+		t.Fatal(err)
+	}
+	if runStatus != "TERMINATED" || runGeneration != beforeGeneration {
+		t.Fatalf("revoked run status=%s generation=%d, want TERMINATED at captured generation %d", runStatus, runGeneration, beforeGeneration)
+	}
+	var reservationStatus string
+	if err := f.pool.Pool.QueryRow(f.ctx, `SELECT status FROM budget_reservations WHERE id=$1::uuid`, reservation.ID).Scan(&reservationStatus); err != nil {
+		t.Fatal(err)
+	}
+	if reservationStatus != "UNKNOWN" {
+		t.Fatalf("active budget reservation status=%s, want UNKNOWN", reservationStatus)
+	}
+	retained, err := holds.Get(f.ctx, lease.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retained.State != processholds.StateUnknown || retained.Revision != unknown.Revision || retained.Process == nil || retained.Process.StartIdentity != process.StartIdentity {
+		t.Fatalf("router mutated unresolved process hold: got=%+v before=%+v", retained, unknown)
+	}
+	var payload []byte
+	if err := f.pool.Pool.QueryRow(f.ctx, `SELECT payload FROM outbox WHERE task_id=$1::uuid AND job_id=$2::uuid AND kind='CANCEL'`, taskID, jobID).Scan(&payload); err != nil {
+		t.Fatal(err)
+	}
+	var target struct {
+		TaskID string `json:"task_id"`
+		JobID  string `json:"job_id"`
+		RunID  string `json:"run_id"`
+	}
+	if err := json.Unmarshal(payload, &target); err != nil {
+		t.Fatal(err)
+	}
+	if target.TaskID != taskID || target.JobID != jobID || target.RunID != lease.RunID {
+		t.Fatalf("active-run cancellation target=%+v, want exact original task/job/run", target)
 	}
 }
 

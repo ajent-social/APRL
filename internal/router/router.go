@@ -747,7 +747,46 @@ func (r *Router) insertLogicalJob(ctx context.Context, repos *storage.Repositori
 }
 
 func (r *Router) cancelJobs(ctx context.Context, repos *storage.Repositories, taskID string) error {
-	rows, err := repos.Queries().Query(ctx, `UPDATE jobs SET status='CANCELLED' WHERE task_id=$1::uuid AND status IN ('PENDING','LEASED') RETURNING id::text`, taskID)
+	// Preserve the exact active run target before cancellation changes the job.
+	// Jobs without a run still get an explicit empty run_id in their intent.
+	runs, err := repos.Queries().Query(ctx, `SELECT j.id::text,ar.id::text
+		FROM jobs j JOIN agent_runs ar ON ar.job_id=j.id AND ar.task_id=j.task_id
+		WHERE j.task_id=$1::uuid AND j.status IN ('PENDING','LEASED') AND ar.execution_status='RUNNING'
+		ORDER BY j.id FOR UPDATE OF j,ar`, taskID)
+	if err != nil {
+		return fmt.Errorf("capture active run targets for cancellation: %w", err)
+	}
+	activeRuns := make(map[string]string)
+	for runs.Next() {
+		var jobID, runID string
+		if err := runs.Scan(&jobID, &runID); err != nil {
+			runs.Close()
+			return fmt.Errorf("read active run targets for cancellation: %w", err)
+		}
+		if _, exists := activeRuns[jobID]; exists {
+			runs.Close()
+			return fmt.Errorf("multiple active runs for job %s", jobID)
+		}
+		activeRuns[jobID] = runID
+	}
+	if err := runs.Err(); err != nil {
+		runs.Close()
+		return fmt.Errorf("read active run targets for cancellation: %w", err)
+	}
+	runs.Close()
+	now := r.clock.Now().UTC()
+	if _, err := repos.Queries().Exec(ctx, `WITH revoked AS (
+		UPDATE agent_runs ar SET execution_status='TERMINATED',finished_at=$2
+		WHERE ar.task_id=$1::uuid AND ar.execution_status='RUNNING'
+		AND EXISTS (SELECT 1 FROM jobs j WHERE j.id=ar.job_id AND j.task_id=ar.task_id AND j.status IN ('PENDING','LEASED'))
+		RETURNING ar.id
+	)
+	UPDATE budget_reservations br SET status='UNKNOWN'
+	FROM revoked r WHERE br.run_id=r.id AND br.status IN ('RESERVED','SETTLING')`, taskID, now); err != nil {
+		return fmt.Errorf("revoke active runs and retain unknown budget coverage: %w", err)
+	}
+	rows, err := repos.Queries().Query(ctx, `UPDATE jobs SET status='CANCELLED',lease_token=NULL,lease_expires_at=NULL
+		WHERE task_id=$1::uuid AND status IN ('PENDING','LEASED') RETURNING id::text`, taskID)
 	if err != nil {
 		return err
 	}
@@ -765,7 +804,15 @@ func (r *Router) cancelJobs(ctx context.Context, repos *storage.Repositories, ta
 	}
 	rows.Close()
 	for _, id := range ids {
-		if _, err := repos.Queries().Exec(ctx, `INSERT INTO outbox(task_id,job_id,kind,payload) VALUES($1::uuid,$2::uuid,'CANCEL',jsonb_build_object('job_id',$2::uuid))`, taskID, id); err != nil {
+		payload, err := json.Marshal(struct {
+			TaskID string `json:"task_id"`
+			JobID  string `json:"job_id"`
+			RunID  string `json:"run_id"`
+		}{TaskID: taskID, JobID: id, RunID: activeRuns[id]})
+		if err != nil {
+			return fmt.Errorf("encode cancellation target for job %s: %w", id, err)
+		}
+		if _, err := repos.Queries().Exec(ctx, `INSERT INTO outbox(task_id,job_id,kind,payload) VALUES($1::uuid,$2::uuid,'CANCEL',$3::jsonb)`, taskID, id, string(payload)); err != nil {
 			return err
 		}
 	}
