@@ -315,3 +315,19 @@ The user requested merging completed work while E1 implementation continues. The
 ## Versioned whole-lifecycle protocol adoption
 
 The [code-delivery/v1 wire contract](contracts/code-delivery-v1.md) and canonical request/digest fixtures freeze the neutral caller-facing protocol. Implementation and interoperability remain future work: E6 must prove subscription-only admission, first-class executable apply+claim children, independent review, bounded explicit corrections, and authenticated verified-landing receipts before a caller claims adoption. Schema freeze does not complete E1 or qualify remote execution.
+
+## Review-task revision (2026 10 03)
+
+Owner-authorized scope: revise design, plan and code for PR-first executable review tasks. Latest accepted policy requires independent review for every code-changing PR; ordinary downstream work waits for verified landing. Public contracts remain caller/provider neutral. Existing E1 acceptance and unfinished source are preserved.
+
+- [ ] T7.1 Specify first-class plan review contracts and policy  Owner: design  kind: agent stage: implement lane: agent  acc: [neutral ADR and runbook define PR handoff, actor independence, bounded correction and stable delivery gates]
+- [ ] T7.2 Implement versioned plan task and receipt validation  Owner: contracts  kind: agent stage: implement lane: agent  acc: [invalid PR snapshots, negative review outcomes and invalid correction envelopes reject]
+- [ ] T7.3 Implement deterministic lifecycle progression and eligibility  Owner: coordinator  kind: agent stage: implement lane: agent  blocked-by: [T7.2]  acc: [author handoff releases review; self-review and stale approval reject; fixes and re-reviews remain explicit; only verified landing releases ordinary descendants]
+- [ ] T7.4 Add durable admission and shared apply adapter  Owner: coordinator  kind: agent stage: implement lane: agent  blocked-by: [T7.3]  acc: [duplicate claims cannot duplicate admission; fenced receipts atomically update visible successor tasks and survive restart]
+- [ ] T7.5 Integrate shared parser and stage routing  Owner: shared-tooling  kind: agent stage: implement lane: agent  blocked-by: [T7.4]  acc: [ordinary apply loops claim review/fix/re-review tasks with current PR and admission; coding checkbox alone cannot authorize mutation]
+- [ ] T7.6 Verify revision and create PR handoff  Owner: coordinator  kind: agent stage: verify lane: agent  blocked-by: [T7.1, T7.5]  acc: [targeted tests and required checks pass; PR URL and exact head recorded on T7.7]
+- [ ] T7.7 Independently review and deliver review-task revision  Owner: independent-reviewer  kind: agent stage: review lane: agent  blocked-by: [T7.6]  acc: [independent current-head review accepted; guarded PR merge confirmed; landed revision verified]
+
+Revision waves: design and contracts plus read-only compatibility discovery in parallel; coordinator progression then durable adapter; shared-tooling integration after contract agreement; verification/PR handoff; independent review and delivery. No paid runtime or production activation follows from this revision.
+
+The T7 review-task primitives are an additive foundation slice. They do not satisfy the caller-facing code-delivery/v1 service protocol, subscription/runtime qualification or E6 end-to-end scheduler integration. Existing E6 IDs and gates are preserved.

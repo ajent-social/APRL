@@ -8,10 +8,14 @@ const CoreVersion = "001_core"
 
 // source embeds SQL migrations without duplicating their contents in Go.
 //
-//go:embed 001_core.sql
+//go:embed *.sql
 var source embed.FS
 
 // ReadCore returns the authoritative SQL source for the core schema.
 func ReadCore() ([]byte, error) {
 	return source.ReadFile("001_core.sql")
 }
+
+// ReadPlanTasks returns the additive first-class task migration.
+// ReadPlanTasks returns the embedded additive plan task migration.
+func ReadPlanTasks() ([]byte, error) { return source.ReadFile("002_plan_tasks.sql") }
