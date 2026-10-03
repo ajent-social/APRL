@@ -164,7 +164,9 @@ E6 integrates the complete lifecycle adapter with generic plan/apply/claim workf
 
 - [x] T6.0 PLAN: map frozen whole-lifecycle integration contract to service adapter  Owner: coordinator Est: 60m kind: plan stage: author delivery-gate: T6.0.R deps: [T1.19.R] blocked-by: [T1.19.R] acc: [Frozen wire-to-service mapping and five bounded implementation/review pairs documented; preserve standalone/product flow and generic tooling; no second scheduler or runtime activation]
   - Scope/contract: [docs/tasks/T6.0.md](tasks/T6.0.md).
-- [ ] T6.0.R Independently review and deliver the lifecycle adapter plan  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/13 blocked-by: [T6.0] acc: [exact-head plan acceptance, complete acyclic ownership/DAG and preserved wire/scope, guarded merge and actual landing verified]
+- [ ] T6.0.R Independently review and deliver the lifecycle adapter plan  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/13 blocked-by: [T6.0, T6.0.F1.R] acc: [exact-head plan acceptance, complete acyclic ownership/DAG and preserved wire/scope, guarded merge and actual landing verified]
+- [ ] T6.0.F1 Clarify admitted, denied and pending intent replay after blocking review  Owner: coordinator kind: agent stage: fix delivery-gate: T6.0.F1.R lane: agent blocked-by: [T6.0] acc: [Resolve finding D1 on PR13 head6d106de; admitted repeats observation, denied repeats403 without lifecycle, pending repeats durable intent503; no wire or implementation scope change]
+- [ ] T6.0.F1.R Independently re-review and deliver corrected adapter plan  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T6.0.F1] acc: [Exact corrected head acceptance and green CI; guarded merge and full landed verification; stable T6.0.R gate releases only after this delivery]
 - [ ] T6.1 Implement strict code-delivery v1 codec  Owner: coordinator Est: 90m kind: agent stage: author delivery-gate: T6.1.R lane: agent deps: [T6.0.R] blocked-by: [T6.0.R] acc: [Exact frozen canonical bytes/digest; strict bounded JSON, required fields/enums/graphs and opaque external identifiers; zero-cost schema without fabricated admission or settlement]
   - Scope/contract: [docs/tasks/T6.1.md](tasks/T6.1.md).
 - [ ] T6.1.R Independently review and deliver T6.1 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T6.1] acc: [exact-head independent acceptance, bounded explicit fix/re-review after blockers, guarded merge and actual landing verified]
@@ -326,6 +328,8 @@ These deferred planning waves are triggers, not a fixed calendar. Expansion inse
 #### Wave 21: E6 planning and implementation delivery gates
 
 - [ ] T6.0.R Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T6.0.F1 Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T6.0.F1.R Scheduling reference; acceptance and scope are in the WBS.
 - [ ] T6.1.R Scheduling reference; acceptance and scope are in the WBS.
 - [ ] T6.2.R Scheduling reference; acceptance and scope are in the WBS.
 - [ ] T6.3.R Scheduling reference; acceptance and scope are in the WBS.
@@ -499,3 +503,5 @@ T1.19.R verified delivery: independent review accepted PR12 exact headea6865b7e2
 T6.0 groom mapping: [implementation plan](contracts/code-delivery-v1-implementation.md) preserves the frozen external schema and ordinary canonical apply/claim path. The five author/review pairs replace the coarse E6 rows and retain standalone/product regressions plus generic tooling acceptance. T6.0.R must deliver this plan before implementation; all downstream ordinary dependencies use review delivery gates. No profile, provider, factory or production service is activated.
 
 T6.0 author handoff: PR13 contains the mapping and five bounded author/review contracts. Parser verified62 unique task definitions/62 wave assignments and88 valid acyclic dependency edges; frozen wire/golden fixture unchanged. Hosted final-head CI and independent T6.0.R acceptance, guarded merge and verified landing remain required before T6.1 coding.
+
+T6.0.R negative review D1 on PR13 head6d106de: replay wording incorrectly promised a lifecycle for denied/pending intent. Explicit T6.0.F1 correction and dependent T6.0.F1.R are required; stable T6.0.R remains blocked and releases no downstream coding until corrected review verifies landing.
