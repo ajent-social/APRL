@@ -65,6 +65,7 @@ func Claim(ctx context.Context, pool *pgxpool.Pool, c clock.Clock, req ClaimRequ
 		return Lease{}, fmt.Errorf("claim lease: %w", ErrInvalid)
 	}
 	var admitted Lease
+	processHeld := false
 	err := storage.WithUnitOfWork(ctx, pool, c, func(ctx context.Context, repos *storage.Repositories) error {
 		lockedTask, err := repos.LockTask(ctx, req.TaskID)
 		if err != nil {
@@ -77,6 +78,19 @@ func Claim(ctx context.Context, pool *pgxpool.Pool, c clock.Clock, req ClaimRequ
 		}
 		if err := fenceExpired(ctx, repos, req.TaskID, now); err != nil {
 			return err
+		}
+		// Execution revocation never proves process cleanup. The task lock
+		// serializes this check against reservation and reaping transitions.
+		var unresolvedProcess bool
+		if err := repos.Queries().QueryRow(ctx, `SELECT EXISTS (
+			SELECT 1 FROM process_holds WHERE task_id=$1::uuid AND state <> 'REAPED'
+		)`, req.TaskID).Scan(&unresolvedProcess); err != nil {
+			return fmt.Errorf("check unresolved process reservation: %w", err)
+		}
+		if unresolvedProcess {
+			// Commit expiration fencing even though replacement is refused.
+			processHeld = true
+			return nil
 		}
 		var active bool
 		if err := repos.Queries().QueryRow(ctx, `SELECT EXISTS (
@@ -170,6 +184,9 @@ func Claim(ctx context.Context, pool *pgxpool.Pool, c clock.Clock, req ClaimRequ
 	})
 	if err != nil {
 		return Lease{}, err
+	}
+	if processHeld {
+		return Lease{}, ErrBusy
 	}
 	return admitted, nil
 }
@@ -328,6 +345,21 @@ func Complete(ctx context.Context, pool *pgxpool.Pool, c clock.Clock, lease Leas
 	}
 	return storage.WithUnitOfWork(ctx, pool, c, func(ctx context.Context, repos *storage.Repositories) error {
 		return CompleteLocked(ctx, repos, lease, status, c)
+	})
+}
+
+// FenceExpiredTask revokes expired execution authority under the task lock.
+// It never removes process holds or proves process cleanup; a trusted startup
+// reconciler must inventory owned processes before invoking this sweep.
+func FenceExpiredTask(ctx context.Context, pool *pgxpool.Pool, c clock.Clock, taskID string) error {
+	if ctx == nil || pool == nil || c == nil || !validID(taskID) {
+		return ErrInvalid
+	}
+	return storage.WithUnitOfWork(ctx, pool, c, func(ctx context.Context, repos *storage.Repositories) error {
+		if _, err := repos.LockTask(ctx, taskID); err != nil {
+			return err
+		}
+		return fenceExpired(ctx, repos, taskID, c.Now().UTC())
 	})
 }
 

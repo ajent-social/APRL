@@ -44,10 +44,14 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	if err != nil {
 		return fmt.Errorf("read plan task migration: %w", err)
 	}
+	holdSQL, err := migrations.ReadProcessHolds()
+	if err != nil {
+		return fmt.Errorf("read process hold migration: %w", err)
+	}
 	for _, migration := range []struct {
 		version string
 		sql     []byte
-	}{{migrations.CoreVersion, sql}, {"002_plan_tasks", planSQL}} {
+	}{{migrations.CoreVersion, sql}, {"002_plan_tasks", planSQL}, {"003_process_holds", holdSQL}} {
 		applied := false
 		if ledgerExists {
 			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version=$1)`, migration.version).Scan(&applied); err != nil {

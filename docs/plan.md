@@ -1,6 +1,6 @@
 # APRL Implementation Plan
 
-Change Summary: 2026 10 03 - Durable control-plane foundation PR1 is present on current main (commit 6feaf92); E1 remains incomplete. T1.1-T1.12 and T1.14 have accepted task evidence; T1.13 and T1.15-T1.19 remain pending. The complete standalone/delegated lifecycle integration contract is documented below; neutral code-delivery/v1 wire schema is frozen; adapter and interoperability proof remain pending. No live paid execution or production rollout is claimed.
+Change Summary: 2026 10 03 - Durable control-plane foundation PR1 is present on current main (commit 6feaf92); E1 remains incomplete. T1.1-T1.14 have accepted task evidence; T1.15-T1.19 remain pending. The complete standalone/delegated lifecycle integration contract is documented below; neutral code-delivery/v1 wire schema is frozen; adapter and interoperability proof remain pending. No live paid execution or production rollout is claimed.
 
 ## 1. Context
 
@@ -103,7 +103,7 @@ Acceptance: T1.1-T1.19 pass on owned test services; a signed event completes thr
   - S1.12.1 Verify: Mix a current passing lint check with old-SHA passing tests and assert review admission stays closed. Run the scoped tests, then formatter/linter checks after code changes.
 - [x] T1.13 Build broker policy and durable mutation admission  Owner: broker  Est: 90m  kind: agent stage: author delivery-gate: T1.13.R  verifies: [UC-002, UC-004, UC-010]  deps: [T1.8, T1.11, T1.12]  acc: [Fake transport enforces A/B/C capability matrix, lease/generation/head/base gates and serialized pause/merge admission; expected head SHA is in merge request; protected targets require current human approval; no token reaches worker payload. No real GitHub writes yet. Fake transport exists only in tests and is constructor-injected; production broker construction requires a configured real transport or fails closed, never defaults to fake success.]  lane: agent  blocked-by: [T1.8, T1.11, T1.12]
   - Scope/contract: [docs/tasks/T1.13.md](tasks/T1.13.md); exact owned files and verification commands are listed there.
-- [ ] T1.13.R Independently review and deliver broker  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T1.13] pr-url: https://github.com/ajent-social/APRL/pull/4 acc: [exact PR head accepted, normal guarded merge, actual landing verified]
+- [x] T1.13.R Independently review and deliver broker  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T1.13] pr-url: https://github.com/ajent-social/APRL/pull/4 acc: [exact PR head accepted, normal guarded merge, actual landing verified]
   - S1.13.1 Verify: Try C approval/merge/out-of-branch push with a valid lease and assert denial. Run the scoped tests, then formatter/linter checks after code changes.
 - [x] T1.14 Accept authenticated worker results and atomic push handoffs  Owner: results  Est: 90m  kind: agent  verifies: [UC-002, UC-003, UC-008]  deps: [T1.7, T1.8, T1.10]  acc: [POST /internal/results authenticates a host service identity (not a repository token): 401 error unauthorized on missing auth, 409 error stale_result on bad lease/generation/snapshot, and 200 accepted with operation_id on idempotent valid completion. Confirmed push bumps generation once and creates successor reply jobs once. Supervisor authentication is bound to the task/run/lease/generation admission; wrong-task/run credentials reject with 403 forbidden even if a different lease is otherwise valid. Identical replay is idempotent and conflicting replay rejects.]  blocked-by: [T1.7, T1.8, T1.10]  lane: agent
   - Scope/contract: [docs/tasks/T1.14.md](tasks/T1.14.md); exact owned files and verification commands are listed there.
@@ -290,7 +290,7 @@ Required execution inputs: owned Postgres 16 and Redis test instances/URLs; Linu
 - [Redis XAUTOCLAIM](https://redis.io/docs/latest/commands/xautoclaim/): pending-message redelivery.
 - [pgx/v5](https://pkg.go.dev/github.com/jackc/pgx/v5): PostgreSQL driver and pool.
 - [Codex configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference#configtoml): provider configuration; experimental rollout tracking is not a USD-cap guarantee.
-- Task contracts: `docs/tasks/T1.1.md` through `docs/tasks/T1.19.md`; T1.1-T1.12 and T1.14 locally certified; T1.13 and T1.15-T1.19 pending.
+- Task contracts: `docs/tasks/T1.1.md` through `docs/tasks/T1.19.md`; T1.1-T1.14 accepted and landed; T1.15-T1.19 pending.
 
 - Execution checkpoint 2026 10 01: Wave 6 accepted locally. Integrated build and 92 real-service test cases pass, with zero skips. Next prescribed wave is T1.11/T1.14 on two Luna lanes; compiler checks remain coordinator-only under ADR 004.
 
@@ -333,6 +333,19 @@ Revision waves: design and contracts plus read-only compatibility discovery in p
 
 The T7 review-task primitives are an additive foundation slice. They do not satisfy the caller-facing code-delivery/v1 service protocol, subscription/runtime qualification or E6 end-to-end scheduler integration. Existing E6 IDs and gates are preserved.
 
-Review-task author handoff: T7.1-T7.6 have completed local acceptance and PR publication; T7.7 subsequently completed independent review and delivery. Its current PR head/base must be captured from GitHub at admission and rechecked before merge. Code was qualified at local source 5b634b9 with 203 regular and 203 race pass events, zero skips, build/vet/lint and restored host-proof regression; the delivery branch preserves byte-identical Go/migration/test source. Generic helper landed separately with 19 focused Python tests. PR3 landed bebad8295ab86fedffd0f6e3171a43ec522c3b05 with exact reviewed tree 87c85a2abf35c3bf0f4529c43b342b714473636e; E1/E6 remain incomplete.
+Historical review-task author handoff: T7.1-T7.6 completed local acceptance and PR publication before T7.7 independent delivery. Its current PR head/base must be captured from GitHub at admission and rechecked before merge. Code was qualified at local source 5b634b9 with 203 regular and 203 race pass events, zero skips, build/vet/lint and restored host-proof regression; the delivery branch preserves byte-identical Go/migration/test source. Generic helper landed separately with 19 focused Python tests. The handoff itself did not complete T7.7; the subsequent landed receipt below completes that review. E1/E6 remain incomplete.
 
-Broker author handoff: PR4 published with independently reviewed source4df8973; 22 targeted race passes, zero skips, vet/lint/format and genuine-red restored branch-denial proof. Exact PR head/base must be captured freshly by T1.13.R before merge. Downstream broker-dependent delivery waits T1.13.R, not this author checkbox.
+T7 delivery receipt: PR3 independently reviewed at exact head 9759d834dd4312f00cf3efae6f61f6fae193b17b and merged by guarded rebase. Actual main landing bebad8295ab86fedffd0f6e3171a43ec522c3b05 has reviewed tree 87c85a2abf35c3bf0f4529c43b342b714473636e. Independent agent acceptance was recorded as a GitHub COMMENT because the shared account authored the PR; no formal GitHub approval or hosted CI success is claimed. T7.7 claim released. No runtime activation or E1/E6 completion.
+
+### T8: Durable process reservations supporting E1 recovery
+
+This necessary bounded foundation correction preserves the original E1 acceptance gates. Execution authority and resource ownership are separate: cancellation revokes execution immediately, while unresolved owned processes retain capacity until trusted host proof.
+
+- [ ] T8.1 Implement durable process reservations and admission gates  Owner: process-holds  kind: agent stage: author delivery-gate: T8.1.R lane: agent  acc: [immutable run-bound reservations, finite trusted scope capacity, cancellation-safe unresolved states, trusted bounded reaping evidence; real PostgreSQL regressions]
+- [ ] T8.1.R Independently review and deliver process hold primitives  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T8.1] acc: [exact-head store/lease/billing review, required checks, guarded merge and actual landing verified]
+- [ ] T8.2 Integrate startup recovery with process reservations  Owner: coordinator  kind: agent stage: implement lane: agent blocked-by: [T8.1.R]  acc: [unresolved reservations block replacement across generations; startup reconciles before sweep or dispatch; ambiguous ownership remains held]
+- [ ] T8.3 Integrate supervisor process ownership  Owner: supervisor  kind: agent stage: implement lane: agent blocked-by: [T8.1.R]  acc: [reservation before launch, exact trusted ownership identity, bounded shutdown, unknown retains capacity, only proven reaped releases]
+- [ ] T8.4 Verify corrected foundation and publish PR  Owner: coordinator  kind: agent stage: verify lane: agent blocked-by: [T8.2, T8.3]  acc: [real database/process boundary regressions, required checks and PR handoff]
+- [ ] T8.5 Independently review and land process reservation correction  Owner: independent-reviewer  kind: agent stage: review lane: agent blocked-by: [T8.4]  acc: [exact PR head accepted, guarded merge and actual landed verification]
+
+Broker delivery receipt: PR4 independently reviewed at exact head 69535b5ee7cd3c7d08de64a6722956ce4d867557 and normally rebase merged to75c7a058a04b0e67767b33f5c0cc9f1143848ad5. Actual landed tree a3220fa0508276cea03c548064e0de7c93b172fd equals reviewed candidate tree. T1.13.R claim released; independent agent acceptance recorded as COMMENT with shared author login. No hosted CI or live transport activation claim.

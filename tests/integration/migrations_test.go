@@ -262,8 +262,8 @@ func migrationAssertCoreTables(ctx context.Context, t *testing.T, database testu
 	if err := database.Pool.QueryRow(ctx, `SELECT count(*) FROM information_schema.tables WHERE table_schema = $1 AND table_type = 'BASE TABLE'`, database.Schema).Scan(&count); err != nil {
 		t.Fatalf("count tables in owned schema: %v", err)
 	}
-	if count != 18 {
-		t.Fatalf("owned schema table count = %d, want 18", count)
+	if count != 19 {
+		t.Fatalf("owned schema table count = %d, want 19", count)
 	}
 	var applied bool
 	if err := database.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = '001_core')`).Scan(&applied); err != nil {
