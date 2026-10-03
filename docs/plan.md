@@ -110,7 +110,7 @@ Acceptance: T1.1-T1.19 pass on owned test services; a signed event completes thr
   - S1.14.1 Verify: Race push webhook and completion for one operation and assert exactly one generation transition/reply intent set. Run the scoped tests, then formatter/linter checks after code changes.
 - [x] T1.13.F1 Bind confirmed merge receipts to the reviewed source head  Owner: broker kind: agent stage: fix delivery-gate: T1.13.F1.R lane: agent blocked-by: [T1.13.R] acc: [merge confirmation requires nonempty exact reviewed source head; mismatched Execute and Lookup remain UNKNOWN; real PostgreSQL regressions and corrective PR handoff]
 - [x] T1.13.F1.R Independently review and deliver exact-head merge receipt correction  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/6 blocked-by: [T1.13.F1] acc: [fresh exact-head source review, guarded merge and actual landing verified]
-- [ ] T1.15 Reconcile durable jobs and ambiguous remote operations  Owner: recovery  Est: 90m  kind: agent stage: author delivery-gate: T1.15.R  verifies: [UC-008, UC-009]  deps: [T1.9, T1.13.R, T1.13.F1.R, T1.14]  acc: [Queue loss republishes unfinished work; expired leases fence before replacement; UNKNOWN GitHub writes query fake remote state before retry; labels repair without state advancement; merged state requires remote confirmation.]  blocked-by: [T1.9, T1.13.R, T1.13.F1.R, T1.14]  lane: agent
+- [x] T1.15 Reconcile durable jobs and ambiguous remote operations  Owner: recovery  Est: 90m  kind: agent stage: author delivery-gate: T1.15.R  verifies: [UC-008, UC-009]  deps: [T1.9, T1.13.R, T1.13.F1.R, T1.14]  acc: [Queue loss republishes unfinished work; expired leases fence before replacement; UNKNOWN GitHub writes query fake remote state before retry; labels repair without state advancement; merged state requires remote confirmation.]  blocked-by: [T1.9, T1.13.R, T1.13.F1.R, T1.14]  lane: agent
   - Scope/contract: [docs/tasks/T1.15.md](tasks/T1.15.md); exact owned files and verification commands are listed there.
 - [ ] T1.15.R Independently review and deliver T1.15 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T1.15] acc: [exact-head independent acceptance, guarded merge and actual landing verified]
   - S1.15.1 Verify: Simulate accepted merge plus timeout and assert reconciliation confirms instead of issuing a second merge. Run the scoped tests, then formatter/linter checks after code changes.
@@ -240,7 +240,7 @@ T1.11, T1.14.
 - [x] T1.16 Scheduling reference; acceptance and scope are in the WBS.
 T1.13, T1.16.
 #### Wave 9: Recovery (1 worker)
-- [ ] T1.15 Scheduling reference; acceptance and scope are in the WBS.
+- [x] T1.15 Scheduling reference; acceptance and scope are in the WBS.
 T1.15.
 #### Wave 10: Assembly (1 worker)
 - [ ] T1.17 Scheduling reference; acceptance and scope are in the WBS.
@@ -442,3 +442,5 @@ T7.8.R actual delivery: private shared skills PR129 independently accepted exact
 Supervisor T1.16 author qualification: full-module source6fb1a7c passed build,270 regular and270 race test events with no skipped tests, vet and lint. Production Go bytes are unchanged by later test-only timeout assertione4a075e; that assertion passed the exact restored targeted native test. Disabling only primary KILL genuinely failed the TERM-ignoring reap-bound test while owned reassert KILL remained for cleanup; exact restoration passed. Native boot/start identity, ambiguous leader retention, stale HTTP result rejection, heartbeat and trusted never-started retry/settlement are exercised. Author checkbox does not establish delivery; T1.16.R must independently accept current PR head and verify actual landing. No OCI containment/restart handle/provider or runtime activation.
 
 T1.16 coding handoff: PR7 contains the qualified native fixture supervisor and canonical review-gated plan. T1.16 author is complete; reviewer T1.16.R must read actual current head/base from GitHub, independently accept, guarded-merge and verify landing. The source plan embeds the stable PR URL, avoiding self-referential head hashes. E1 acceptance remains14/19 until delivery receipts establish additional tasks.
+
+T1.15 author qualification: source7583261 composed with independently merged supervisor passed full build,284 regular and284 race executed test cases, zero skipped tests, vet/lint and two-file formatting/import checks. Future repair deadline predicate genuine-red caught premature same-pass retry; restored source passed. Author handoff is complete, but T1.15.R independent exact-head acceptance and actual verified landing remain required before descendants.
