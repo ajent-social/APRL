@@ -219,6 +219,7 @@ func (c *Consumer) disposeUnstarted(ctx context.Context, lease leases.Lease) err
 			r.process_id IS NOT NULL OR EXISTS(SELECT 1 FROM cost_entries ce JOIN budget_reservations b ON b.id=ce.reservation_id WHERE b.run_id=r.id)
 			OR EXISTS(SELECT 1 FROM worker_result_receipts w WHERE w.run_id=r.id)
 			OR EXISTS(SELECT 1 FROM github_operations op WHERE op.request->>'run_id'=r.id::text)
+			OR EXISTS(SELECT 1 FROM process_holds h WHERE h.run_id=r.id AND (h.state <> 'REAPED' OR h.reap_evidence->>'kind'='GROUP_DRAINED'))
 			FROM agent_runs r WHERE r.id=$1::uuid AND r.task_id=$2::uuid AND r.job_id=$3::uuid
 			AND r.lease_token=$4::uuid AND r.generation=$5 AND r.attempt_number=$6
 			AND r.supervisor_identity=$7 AND r.supervisor_credential_id=$8 FOR UPDATE OF r`,

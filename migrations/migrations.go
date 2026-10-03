@@ -16,6 +16,8 @@ func ReadCore() ([]byte, error) {
 	return source.ReadFile("001_core.sql")
 }
 
-// ReadPlanTasks returns the additive first-class task migration.
 // ReadPlanTasks returns the embedded additive plan task migration.
 func ReadPlanTasks() ([]byte, error) { return source.ReadFile("002_plan_tasks.sql") }
+
+// ReadProcessHolds returns the durable process reservation migration.
+func ReadProcessHolds() ([]byte, error) { return source.ReadFile("003_process_holds.sql") }
