@@ -69,3 +69,12 @@ Wave 2 integrated `go build ./...` also passed under the acquired/released share
 Two prescribed coding lanes own controls and results separately. The coordinator retains shared schema/docs, integration and build-gate ownership. Accepted receipt replay cannot bypass supervisor/run binding; confirmed push completion requires immutable original-run proof. Unknown usage retains budget coverage. Acceptance is pending.
 
 Independent wave-6 review reopened the delivery boundary for a concrete consumer-starvation defect and expiry-before-handoff gap. Both new regressions failed against previous behavior. The restored implementation passes 13 delivery cases, all affected vet/lint/observer gates and six focused race events, with no skips. Integration will be rechecked with the next wave.
+
+## First-class review task primitives (T7 author handoff)
+
+- Verified source: `5b634b9`; the delivery branch carries identical Go, migration and test bytes on top of current main.
+- Build, vet and lint pass. Regular and serialized race suites each execute 203 test pass events with zero skips against owned PostgreSQL and Redis fixtures. The final source includes all declared parallel contributors in review exclusions and preserves historical verdicts across later corrections.
+- Buffered provider/store tests cover atomic PR publication, revision races, append-only receipt audit, transaction rollback, actor/claim/policy fencing, correction expansion and host-qualified final delivery.
+- Genuine-red: disabling the host outcome verifier caused the actual forged-merge integration case to fail; exact source restoration passes. No compile error or skipped fixture is counted as the negative proof.
+- Independent source reviews accepted contract/adapter and coordinator state/store changes. The PR delivery task remains pending current-head review, guarded merge and actual landed verification.
+- The shared generic provider/parser/pool bridge has independent review, 19 focused Python passes and verified repository landing. No provider endpoint, credentials or runtime profile is activated by this slice; external protocol/runtime interoperability and the remaining E1/E6 gates are pending.
