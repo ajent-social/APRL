@@ -19,11 +19,11 @@ func supervisorNativeProcessStartIdentity(pid int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	close := strings.LastIndexByte(string(stat), ')')
-	if close < 0 {
+	closeParen := strings.LastIndexByte(string(stat), ')')
+	if closeParen < 0 {
 		return "", supervisor.ErrInvalid
 	}
-	fields := strings.Fields(string(stat[close+1:]))
+	fields := strings.Fields(string(stat[closeParen+1:]))
 	if len(fields) <= 19 {
 		return "", supervisor.ErrInvalid
 	}
