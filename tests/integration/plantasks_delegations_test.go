@@ -409,7 +409,7 @@ func (f *plantasksDelegationInitialFactory) InitialState(request plantasks.Deliv
 	if seconds < 1 {
 		seconds = 1
 	}
-	state.Lifecycle.Limits.MaxDurationSeconds = seconds
+	state.Lifecycle.Limits.MaxDurationSeconds = int(seconds)
 	for id, task := range state.Tasks {
 		task.CreatedAt = now.UTC()
 		state.Tasks[id] = task
