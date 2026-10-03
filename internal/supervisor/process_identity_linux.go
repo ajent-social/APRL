@@ -17,11 +17,11 @@ func processStartIdentity(pid int) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("read native process start identity: %w", err)
 	}
-	close := strings.LastIndexByte(string(stat), ')')
-	if close < 0 {
+	closeParen := strings.LastIndexByte(string(stat), ')')
+	if closeParen < 0 {
 		return "", fmt.Errorf("parse native process stat: %w", ErrInvalid)
 	}
-	fields := strings.Fields(string(stat[close+1:]))
+	fields := strings.Fields(string(stat[closeParen+1:]))
 	if len(fields) <= 19 {
 		return "", fmt.Errorf("parse native process start time: %w", ErrInvalid)
 	}
