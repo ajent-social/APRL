@@ -301,11 +301,14 @@ func (a *plantasksDelegationAuthenticator) AuthenticatedCaller(context.Context) 
 type plantasksDelegationPolicy struct {
 	mu                sync.Mutex
 	calls             int
+	verifies          int
 	temporary         bool
 	denyReason        string
 	authorizeEntered  chan struct{}
 	authorizeContinue chan struct{}
 	authorizeOnce     sync.Once
+	manualClock       *clock.Manual
+	advanceOnVerify   time.Duration
 }
 
 func (p *plantasksDelegationPolicy) Authorize(ctx context.Context, caller string, request plantasks.DeliveryV1Request) (plantasks.DeliveryV1Authorization, error) {
@@ -341,6 +344,14 @@ func (p *plantasksDelegationPolicy) Authorize(ctx context.Context, caller string
 }
 
 func (p *plantasksDelegationPolicy) Verify(ctx context.Context, request plantasks.DeliveryV1Request, authorization plantasks.DeliveryV1Authorization, now time.Time) error {
+	p.mu.Lock()
+	manualClock, advance := p.manualClock, p.advanceOnVerify
+	p.advanceOnVerify = 0
+	p.verifies++
+	p.mu.Unlock()
+	if manualClock != nil && advance != 0 {
+		manualClock.Advance(advance)
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -366,6 +377,12 @@ func (p *plantasksDelegationPolicy) callCount() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.calls
+}
+
+func (p *plantasksDelegationPolicy) verifyCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.verifies
 }
 
 type plantasksDelegationInitialFactory struct {
@@ -769,5 +786,427 @@ func TestPlanDelegationCancelFencesInFlightIntentAuthorization(t *testing.T) {
 	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
 	if intentCount != 1 || lifecycleCount != 0 || receiptCount != 0 || factory.calls.Load() != 0 {
 		t.Fatalf("cancel/auth race persisted binding/lifecycle/receipts=%d/%d/%d factoryCalls=%d", intentCount, lifecycleCount, receiptCount, factory.calls.Load())
+	}
+}
+
+func TestPlanDelegationAggregateAttemptsCoverAuthorReviewFixAndRereview(t *testing.T) {
+	ctx := context.Background()
+	db := testutil.RequireDatabase(t)
+	if err := storage.Migrate(ctx, db.Pool); err != nil {
+		t.Fatalf("migrate delegation test schema: %v", err)
+	}
+	manual := clock.NewManual(time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC))
+	store := plantasksDelegationStore(t, db.Pool, manual)
+	auth := &plantasksDelegationAuthenticator{caller: "caller-example"}
+	admissionPolicy := &plantasksDelegationPolicy{}
+	factory := &plantasksDelegationInitialFactory{}
+	delegations, err := plantasks.NewDelegations(store, auth, admissionPolicy, factory)
+	if err != nil {
+		t.Fatalf("construct delegations service: %v", err)
+	}
+	_, request := plantasksDelegationRequest(t)
+	request.Spec.Envelope.MaxAttempts = 3
+	request.Spec.Envelope.MaxConcurrent = 1
+	raw, err := plantasks.EncodeDeliveryV1Request(request)
+	if err != nil {
+		t.Fatalf("encode three-attempt request: %v", err)
+	}
+	binding, err := delegations.Submit(ctx, raw)
+	if err != nil {
+		t.Fatalf("submit request with three attempt slots: %v", err)
+	}
+	var authorTask, reviewTask plantasks.Task
+	for _, task := range binding.State.Tasks {
+		switch task.Stage {
+		case plantasks.StageAuthor:
+			authorTask = task
+		case plantasks.StageReview:
+			reviewTask = task
+		}
+	}
+	if authorTask.ID == "" || reviewTask.ID == "" {
+		t.Fatalf("factory did not create initial author/review tasks: %+v", binding.State.Tasks)
+	}
+
+	author := plantasks.Provenance{ActorID: "author-1", ActorKind: "human", AuthoredAt: manual.Now()}
+	reviewer := plantasks.Provenance{ActorID: "reviewer-1", ActorKind: "human", AuthoredAt: manual.Now()}
+	fixer := plantasks.Provenance{ActorID: "fixer-1", ActorKind: "agent", AuthoredAt: manual.Now()}
+	actors := &plantasksTestAuthenticator{actor: author}
+	claims := &plantasksTestClaimVerifier{allowed: map[string]plantasksTestClaim{}}
+	runtime := &plantasksTestRuntimePolicy{lifecycleID: binding.LifecycleID,
+		taskIDs:  map[string]bool{authorTask.ID: true, reviewTask.ID: true},
+		actorIDs: map[string]bool{author.ActorID: true, reviewer.ActorID: true, fixer.ActorID: true}}
+	outcomes := &plantasksTestOutcomeVerifier{allowed: map[string]plantasks.Receipt{}}
+	adapter, err := plantasks.NewAdapter(store, claims, actors, runtime, outcomes)
+	if err != nil {
+		t.Fatalf("construct ordinary lifecycle adapter: %v", err)
+	}
+	admit := func(taskID, claimSHA string, actor plantasks.Provenance, revision int64) error {
+		t.Helper()
+		claims.allow(taskID, claimSHA, actor.ActorID)
+		actors.actor = actor
+		return adapter.Admit(ctx, binding.LifecycleID, taskID, claimSHA, revision, manual.Now().Add(time.Hour))
+	}
+	load := func() plantasks.State {
+		t.Helper()
+		state, err := store.Load(ctx, binding.LifecycleID)
+		if err != nil {
+			t.Fatalf("load delegated lifecycle: %v", err)
+		}
+		return state
+	}
+	pr := plantasks.PRBinding{Number: 12, URL: "https://github.com/example/project/pull/12",
+		HeadSHA: request.Spec.SourceCommit, BaseSHA: strings.Repeat("b", 40), PolicyRevision: request.Spec.PolicyRevision}
+	if err := admit(authorTask.ID, strings.Repeat("a", 40), author, 0); err != nil {
+		t.Fatalf("admit author (attempt one): %v", err)
+	}
+	author.SourceRevision = pr.HeadSHA
+	actors.actor = author
+	authorHandoff := plantasks.Receipt{Version: plantasks.VersionV1, ID: "f2000000-0000-4000-8000-000000000001",
+		LifecycleID: binding.LifecycleID, TaskID: authorTask.ID, Outcome: plantasks.OutcomeCodingHandoff,
+		Actor: author, PolicyRevision: request.Spec.PolicyRevision, PR: &pr, CreatedAt: manual.Now()}
+	state := load()
+	if err := adapter.Result(ctx, binding.LifecycleID, authorHandoff, strings.Repeat("a", 40), state.Revision); err != nil {
+		t.Fatalf("record author handoff (attempt one): %v", err)
+	}
+	state = load()
+	if err := admit(reviewTask.ID, strings.Repeat("b", 40), reviewer, state.Revision); err == nil {
+		t.Fatal("review admission exceeded max_concurrent while author claim remained live")
+	}
+	if afterDenied := load(); afterDenied.Revision != state.Revision || !reflect.DeepEqual(afterDenied.Attempts, state.Attempts) || !reflect.DeepEqual(afterDenied.Claims, state.Claims) {
+		t.Fatalf("concurrency denial mutated lifecycle: before=%+v after=%+v", state, afterDenied)
+	}
+	manual.Advance(time.Hour + time.Nanosecond)
+	state = load()
+	if err := admit(reviewTask.ID, strings.Repeat("b", 40), reviewer, state.Revision); err != nil {
+		t.Fatalf("admit independent review after author claim expiry (attempt two): %v", err)
+	}
+	reviewer.SourceRevision = pr.HeadSHA
+	actors.actor = reviewer
+	negative := plantasks.Receipt{Version: plantasks.VersionV1, ID: "f2000000-0000-4000-8000-000000000002",
+		LifecycleID: binding.LifecycleID, TaskID: reviewTask.ID, Outcome: plantasks.OutcomeChangesRequest,
+		Actor: reviewer, PolicyRevision: request.Spec.PolicyRevision, PR: &pr,
+		FindingIDs: []string{"f2000000-0000-4000-8000-000000000003"}, CreatedAt: manual.Now(), Detail: "one bounded correction"}
+	state = load()
+	if err := adapter.Result(ctx, binding.LifecycleID, negative, strings.Repeat("b", 40), state.Revision); err != nil {
+		t.Fatalf("record negative review and open correction (attempt two): %v", err)
+	}
+	state = load()
+	var fixTask, rereviewTask plantasks.Task
+	for _, task := range state.Tasks {
+		if task.Stage == plantasks.StageFix && task.Correction == 1 {
+			fixTask = task
+		}
+		if task.Stage == plantasks.StageRereview && task.Correction == 1 {
+			rereviewTask = task
+		}
+	}
+	if fixTask.ID == "" || rereviewTask.ID == "" {
+		t.Fatalf("negative review did not create bounded fix/re-review: tasks=%+v", state.Tasks)
+	}
+	runtime.taskIDs[fixTask.ID] = true
+	runtime.taskIDs[rereviewTask.ID] = true
+	if err := admit(fixTask.ID, strings.Repeat("c", 40), fixer, state.Revision); err != nil {
+		t.Fatalf("admit fix (attempt three): %v", err)
+	}
+	newPR := pr
+	newPR.HeadSHA = strings.Repeat("c", 40)
+	fixer.SourceRevision = newPR.HeadSHA
+	actors.actor = fixer
+	fixHandoff := plantasks.Receipt{Version: plantasks.VersionV1, ID: "f2000000-0000-4000-8000-000000000004",
+		LifecycleID: binding.LifecycleID, TaskID: fixTask.ID, Outcome: plantasks.OutcomeCodingHandoff,
+		Actor: fixer, PolicyRevision: request.Spec.PolicyRevision, PR: &newPR, CreatedAt: manual.Now()}
+	state = load()
+	if err := adapter.Result(ctx, binding.LifecycleID, fixHandoff, strings.Repeat("c", 40), state.Revision); err != nil {
+		t.Fatalf("record fix handoff (attempt three): %v", err)
+	}
+	manual.Advance(time.Hour + time.Nanosecond)
+	before := load()
+	var totalAttempts int
+	for _, count := range before.Attempts {
+		totalAttempts += count
+	}
+	if totalAttempts != request.Spec.Envelope.MaxAttempts {
+		t.Fatalf("admissions across author/review/fix=%d, want lifecycle cap %d", totalAttempts, request.Spec.Envelope.MaxAttempts)
+	}
+	if err := admit(rereviewTask.ID, strings.Repeat("d", 40), reviewer, before.Revision); err == nil {
+		t.Fatal("re-review admission succeeded after author/review/fix exhausted lifecycle-wide attempts")
+	}
+	after := load()
+	if after.Revision != before.Revision || !reflect.DeepEqual(after.Attempts, before.Attempts) || !reflect.DeepEqual(after.Claims, before.Claims) || len(after.Tasks) != len(before.Tasks) || len(after.Receipts) != len(before.Receipts) {
+		t.Fatalf("denied fourth lifecycle admission mutated state: before=%+v after=%+v", before, after)
+	}
+}
+
+func TestPlanDelegationCancelReplayAndUnknownReceiptDoNotReopenAuthority(t *testing.T) {
+	ctx := context.Background()
+	db := testutil.RequireDatabase(t)
+	if err := storage.Migrate(ctx, db.Pool); err != nil {
+		t.Fatalf("migrate delegation test schema: %v", err)
+	}
+	start := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
+	manual := clock.NewManual(start)
+	store := plantasksDelegationStore(t, db.Pool, manual)
+	auth := &plantasksDelegationAuthenticator{caller: "caller-example"}
+	admissionPolicy := &plantasksDelegationPolicy{}
+	factory := &plantasksDelegationInitialFactory{}
+	delegations, err := plantasks.NewDelegations(store, auth, admissionPolicy, factory)
+	if err != nil {
+		t.Fatalf("construct delegations service: %v", err)
+	}
+	_, request := plantasksDelegationRequest(t)
+	expiry := start.Add(30*time.Second + 123456789*time.Nanosecond)
+	request.Spec.Envelope.ExpiresAt = expiry
+	raw, err := plantasks.EncodeDeliveryV1Request(request)
+	if err != nil {
+		t.Fatalf("encode exact-expiry request: %v", err)
+	}
+	binding, err := delegations.Submit(ctx, raw)
+	if err != nil {
+		t.Fatalf("submit expiring delegation: %v", err)
+	}
+	var authorTask plantasks.Task
+	for _, task := range binding.State.Tasks {
+		if task.Stage == plantasks.StageAuthor {
+			authorTask = task
+		}
+	}
+	if authorTask.ID == "" {
+		t.Fatalf("missing initial author task: %+v", binding.State.Tasks)
+	}
+	author := plantasks.Provenance{ActorID: "author-1", ActorKind: "human", AuthoredAt: manual.Now()}
+	actors := &plantasksTestAuthenticator{actor: author}
+	claim := strings.Repeat("a", 40)
+	claims := &plantasksTestClaimVerifier{allowed: map[string]plantasksTestClaim{}}
+	claims.allow(authorTask.ID, claim, author.ActorID)
+	runtime := &plantasksTestRuntimePolicy{lifecycleID: binding.LifecycleID,
+		taskIDs: map[string]bool{authorTask.ID: true}, actorIDs: map[string]bool{author.ActorID: true}}
+	outcomes := &plantasksTestOutcomeVerifier{allowed: map[string]plantasks.Receipt{}}
+	adapter, err := plantasks.NewAdapter(store, claims, actors, runtime, outcomes)
+	if err != nil {
+		t.Fatalf("construct ordinary lifecycle adapter: %v", err)
+	}
+	claimExpiry := expiry.Add(-time.Nanosecond)
+	if err := adapter.Admit(ctx, binding.LifecycleID, authorTask.ID, claim, binding.State.Revision, claimExpiry); err != nil {
+		t.Fatalf("admit author with strictly pre-expiry claim: %v", err)
+	}
+
+	firstCancel, err := delegations.Cancel(ctx, request.DelegationID)
+	if err != nil || !firstCancel.Cancelled || firstCancel.Status != plantasks.DelegationAdmitted || firstCancel.LifecycleID != binding.LifecycleID {
+		t.Fatalf("cancel admitted delegation: binding=%+v error=%v", firstCancel, err)
+	}
+	cancelledState, err := store.Load(ctx, binding.LifecycleID)
+	if err != nil {
+		t.Fatalf("load state after cancellation: %v", err)
+	}
+	if !cancelledState.Cancelled || len(cancelledState.Tasks) != 2 || len(cancelledState.Receipts) != 0 {
+		t.Fatalf("cancellation rewrote task/receipt history: cancelled=%t tasks=%d receipts=%d", cancelledState.Cancelled, len(cancelledState.Tasks), len(cancelledState.Receipts))
+	}
+	cancelReplay, err := delegations.Cancel(ctx, request.DelegationID)
+	if err != nil {
+		t.Fatalf("replay cancellation: %v", err)
+	}
+	if cancelReplay.Sequence != firstCancel.Sequence || cancelReplay.State.Revision != firstCancel.State.Revision || len(cancelReplay.State.Tasks) != len(firstCancel.State.Tasks) || len(cancelReplay.State.Receipts) != len(firstCancel.State.Receipts) {
+		t.Fatalf("cancel replay churned observation or lifecycle: first=%+v replay=%+v", firstCancel, cancelReplay)
+	}
+
+	unknown := plantasks.Receipt{Version: plantasks.VersionV1, ID: "f3000000-0000-4000-8000-000000000001",
+		LifecycleID: binding.LifecycleID, TaskID: authorTask.ID, Outcome: plantasks.OutcomeUnknown,
+		Actor: author, PolicyRevision: request.Spec.PolicyRevision, CreatedAt: manual.Now(), Detail: "execution outcome is unknown"}
+	if err := adapter.Result(ctx, binding.LifecycleID, unknown, claim, firstCancel.State.Revision); err != nil {
+		t.Fatalf("persist non-releasing unknown receipt on live admission after cancel: %v", err)
+	}
+	afterUnknown, err := delegations.Get(ctx, request.DelegationID)
+	if err != nil {
+		t.Fatalf("load binding after unknown receipt: %v", err)
+	}
+	if afterUnknown.Sequence != firstCancel.Sequence+1 || !afterUnknown.Cancelled || afterUnknown.State.Completed[authorTask.ID] != "" || afterUnknown.State.DeliveryReceiptID != "" || len(afterUnknown.State.Receipts) != 1 {
+		t.Fatalf("unknown receipt reopened or failed to audit cancelled lifecycle: %+v", afterUnknown)
+	}
+	stable, err := delegations.Cancel(ctx, request.DelegationID)
+	if err != nil {
+		t.Fatalf("replay cancellation after unknown: %v", err)
+	}
+	if stable.Sequence != afterUnknown.Sequence || len(stable.State.Receipts) != 1 || stable.State.Completed[authorTask.ID] != "" {
+		t.Fatalf("cancel replay altered unknown audit or positive completion: %+v", stable)
+	}
+
+	manual.Set(expiry)
+	lateHandoff := plantasks.Receipt{Version: plantasks.VersionV1, ID: "f3000000-0000-4000-8000-000000000002",
+		LifecycleID: binding.LifecycleID, TaskID: authorTask.ID, Outcome: plantasks.OutcomeCodingHandoff,
+		Actor: author, PolicyRevision: request.Spec.PolicyRevision, PR: &plantasks.PRBinding{
+			Number: 12, URL: "https://github.com/example/project/pull/12", HeadSHA: request.Spec.SourceCommit,
+			BaseSHA: strings.Repeat("b", 40), PolicyRevision: request.Spec.PolicyRevision}, CreatedAt: expiry}
+	if err := adapter.Result(ctx, binding.LifecycleID, lateHandoff, claim, afterUnknown.State.Revision); err == nil {
+		t.Fatal("positive coding handoff was accepted at the exact caller expiry")
+	}
+	final, err := delegations.Get(ctx, request.DelegationID)
+	if err != nil {
+		t.Fatalf("load binding after exact-expiry denial: %v", err)
+	}
+	if final.Sequence != afterUnknown.Sequence || !final.Cancelled || final.State.Completed[authorTask.ID] != "" || len(final.State.Receipts) != 1 {
+		t.Fatalf("exact-expiry positive denial changed canceled unknown history: %+v", final)
+	}
+}
+
+func TestPlanDelegationRechecksExactExpiryAfterLocalAuthorizationVerification(t *testing.T) {
+	ctx := context.Background()
+	db := testutil.RequireDatabase(t)
+	if err := storage.Migrate(ctx, db.Pool); err != nil {
+		t.Fatalf("migrate delegation test schema: %v", err)
+	}
+	start := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
+	manual := clock.NewManual(start)
+	store := plantasksDelegationStore(t, db.Pool, manual)
+	auth := &plantasksDelegationAuthenticator{caller: "caller-example"}
+	policy := &plantasksDelegationPolicy{manualClock: manual, advanceOnVerify: 6 * time.Nanosecond}
+	factory := &plantasksDelegationInitialFactory{}
+	service, err := plantasks.NewDelegations(store, auth, policy, factory)
+	if err != nil {
+		t.Fatalf("construct delegations service: %v", err)
+	}
+	_, request := plantasksDelegationRequest(t)
+	request.Spec.Envelope.ExpiresAt = start.Add(5 * time.Nanosecond)
+	raw, err := plantasks.EncodeDeliveryV1Request(request)
+	if err != nil {
+		t.Fatalf("encode near-expiry request: %v", err)
+	}
+	binding, err := service.Submit(ctx, raw)
+	if err != nil {
+		t.Fatalf("late local verification should produce terminal denial: %v", err)
+	}
+	if binding.Status != plantasks.DelegationDenied || binding.LifecycleID != "" || binding.State != nil || binding.Authorization.Allowed {
+		t.Fatalf("decision was admitted from pre-verification time sample: %+v", binding)
+	}
+	if !manual.Now().After(request.Spec.Envelope.ExpiresAt) || factory.calls.Load() != 0 {
+		t.Fatalf("expiry was not rechecked before factory: now=%s expiry=%s factoryCalls=%d", manual.Now().Format(time.RFC3339Nano), request.Spec.Envelope.ExpiresAt.Format(time.RFC3339Nano), factory.calls.Load())
+	}
+	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
+	if intentCount != 1 || lifecycleCount != 0 || receiptCount != 0 {
+		t.Fatalf("late local verification persisted binding/lifecycle/receipts=%d/%d/%d, want 1/0/0", intentCount, lifecycleCount, receiptCount)
+	}
+}
+
+func TestPlanDelegationAlreadyExpiredRequestDeniesBeforeFactoryOrLocalVerify(t *testing.T) {
+	ctx := context.Background()
+	db := testutil.RequireDatabase(t)
+	if err := storage.Migrate(ctx, db.Pool); err != nil {
+		t.Fatalf("migrate delegation test schema: %v", err)
+	}
+	now := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
+	manual := clock.NewManual(now)
+	store := plantasksDelegationStore(t, db.Pool, manual)
+	auth := &plantasksDelegationAuthenticator{caller: "caller-example"}
+	policy := &plantasksDelegationPolicy{}
+	factory := &plantasksDelegationInitialFactory{}
+	service, err := plantasks.NewDelegations(store, auth, policy, factory)
+	if err != nil {
+		t.Fatalf("construct delegations service: %v", err)
+	}
+	_, request := plantasksDelegationRequest(t)
+	request.Spec.Envelope.ExpiresAt = now
+	raw, err := plantasks.EncodeDeliveryV1Request(request)
+	if err != nil {
+		t.Fatalf("encode syntactically valid expired request: %v", err)
+	}
+	binding, err := service.Submit(ctx, raw)
+	if err != nil {
+		t.Fatalf("expired request should become terminal denial: %v", err)
+	}
+	if binding.Status != plantasks.DelegationDenied || binding.LifecycleID != "" || binding.State != nil || binding.Authorization.Allowed {
+		t.Fatalf("already-expired request was admitted: %+v", binding)
+	}
+	if factory.calls.Load() != 0 || policy.verifyCount() != 0 {
+		t.Fatalf("expired request crossed trusted construction/local verification: factory=%d verify=%d", factory.calls.Load(), policy.verifyCount())
+	}
+	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
+	if intentCount != 1 || lifecycleCount != 0 || receiptCount != 0 {
+		t.Fatalf("expired request counts binding/lifecycle/receipts=%d/%d/%d, want 1/0/0", intentCount, lifecycleCount, receiptCount)
+	}
+}
+
+func TestPlanDelegationReceiptAndBindingSnapshotCommitAtomically(t *testing.T) {
+	ctx := context.Background()
+	db := testutil.RequireDatabase(t)
+	if err := storage.Migrate(ctx, db.Pool); err != nil {
+		t.Fatalf("migrate delegation test schema: %v", err)
+	}
+	manual := clock.NewManual(time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC))
+	store := plantasksDelegationStore(t, db.Pool, manual)
+	auth := &plantasksDelegationAuthenticator{caller: "caller-example"}
+	delegations, err := plantasks.NewDelegations(store, auth, &plantasksDelegationPolicy{}, &plantasksDelegationInitialFactory{})
+	if err != nil {
+		t.Fatalf("construct delegations service: %v", err)
+	}
+	raw, request := plantasksDelegationRequest(t)
+	binding, err := delegations.Submit(ctx, raw)
+	if err != nil {
+		t.Fatalf("admit request: %v", err)
+	}
+	var authorTask plantasks.Task
+	for _, task := range binding.State.Tasks {
+		if task.Stage == plantasks.StageAuthor {
+			authorTask = task
+		}
+	}
+	author := plantasks.Provenance{ActorID: "author-1", ActorKind: "human", AuthoredAt: manual.Now()}
+	actors := &plantasksTestAuthenticator{actor: author}
+	claim := strings.Repeat("a", 40)
+	claims := &plantasksTestClaimVerifier{allowed: map[string]plantasksTestClaim{}}
+	claims.allow(authorTask.ID, claim, author.ActorID)
+	runtime := &plantasksTestRuntimePolicy{lifecycleID: binding.LifecycleID,
+		taskIDs: map[string]bool{authorTask.ID: true}, actorIDs: map[string]bool{author.ActorID: true}}
+	outcomes := &plantasksTestOutcomeVerifier{allowed: map[string]plantasks.Receipt{}}
+	adapter, err := plantasks.NewAdapter(store, claims, actors, runtime, outcomes)
+	if err != nil {
+		t.Fatalf("construct ordinary lifecycle adapter: %v", err)
+	}
+	if err := adapter.Admit(ctx, binding.LifecycleID, authorTask.ID, claim, binding.State.Revision, manual.Now().Add(time.Hour)); err != nil {
+		t.Fatalf("admit author: %v", err)
+	}
+	beforeBinding, err := delegations.Get(ctx, request.DelegationID)
+	if err != nil {
+		t.Fatalf("load binding before receipt attempt: %v", err)
+	}
+	beforeState, err := store.Load(ctx, binding.LifecycleID)
+	if err != nil {
+		t.Fatalf("load lifecycle before receipt attempt: %v", err)
+	}
+
+	if _, err := db.Pool.Exec(ctx, `CREATE FUNCTION reject_delegation_receipt_binding() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN RAISE EXCEPTION 'forced observation-binding commit failure'; END; $$`); err != nil {
+		t.Fatalf("create observation-binding failure function: %v", err)
+	}
+	if _, err := db.Pool.Exec(ctx, `CREATE TRIGGER reject_delegation_receipt_binding BEFORE UPDATE OF lifecycle_revision ON plan_delegations
+		FOR EACH ROW EXECUTE FUNCTION reject_delegation_receipt_binding()`); err != nil {
+		t.Fatalf("create observation-binding failure trigger: %v", err)
+	}
+	unknown := plantasks.Receipt{Version: plantasks.VersionV1, ID: "f4000000-0000-4000-8000-000000000001",
+		LifecycleID: binding.LifecycleID, TaskID: authorTask.ID, Outcome: plantasks.OutcomeUnknown,
+		Actor: author, PolicyRevision: request.Spec.PolicyRevision, CreatedAt: manual.Now(), Detail: "provider outcome is unknown"}
+	if err := adapter.Result(ctx, binding.LifecycleID, unknown, claim, beforeState.Revision); err == nil {
+		t.Fatal("unknown receipt committed despite forced observation-binding failure")
+	}
+	if _, err := db.Pool.Exec(ctx, `DROP TRIGGER reject_delegation_receipt_binding ON plan_delegations`); err != nil {
+		t.Fatalf("drop observation-binding failure trigger: %v", err)
+	}
+	if _, err := db.Pool.Exec(ctx, `DROP FUNCTION reject_delegation_receipt_binding()`); err != nil {
+		t.Fatalf("drop observation-binding failure function: %v", err)
+	}
+	afterBinding, err := delegations.Get(ctx, request.DelegationID)
+	if err != nil {
+		t.Fatalf("load binding after rolled-back receipt: %v", err)
+	}
+	afterState, err := store.Load(ctx, binding.LifecycleID)
+	if err != nil {
+		t.Fatalf("load lifecycle after rolled-back receipt: %v", err)
+	}
+	var auditCount int
+	if err := db.Pool.QueryRow(ctx, `SELECT count(*) FROM plan_task_receipts WHERE lifecycle_id=$1::uuid`, binding.LifecycleID).Scan(&auditCount); err != nil {
+		t.Fatalf("count receipt audit after rollback: %v", err)
+	}
+	if afterBinding.Sequence != beforeBinding.Sequence || afterBinding.LifecycleRevision != beforeBinding.LifecycleRevision ||
+		afterState.Revision != beforeState.Revision || len(afterState.Receipts) != len(beforeState.Receipts) || auditCount != 0 || afterState.Completed[authorTask.ID] != "" {
+		t.Fatalf("failed binding commit left partial receipt/lifecycle state: bindingBefore=%+v bindingAfter=%+v stateBefore=%+v stateAfter=%+v audit=%d", beforeBinding, afterBinding, beforeState, afterState, auditCount)
 	}
 }
