@@ -1,6 +1,6 @@
 # APRL Implementation Plan
 
-Change Summary: 2026 10 03 - Durable control-plane foundation PR1 is present on current main (commit 6feaf92); E1 remains incomplete. T1.1-T1.16 have accepted/delivered task evidence; T1.17-T1.19 remain pending. The complete standalone/delegated lifecycle integration contract is documented below; neutral code-delivery/v1 wire schema is frozen; adapter and interoperability proof remain pending. No live paid execution or production rollout is claimed.
+Change Summary: 2026 10 03 - E1 foundation tasks T1.1-T1.19 have accepted/delivered evidence; current main is 5bb7556 after PR12. Owned-service tests and hosted Linux CI pass 315 normal/315 race events with zero failures/skips. The complete standalone/delegated lifecycle integration contract is documented below; neutral code-delivery/v1 wire schema is frozen; adapter and interoperability proof remain pending. No live paid execution or production rollout is claimed.
 
 ## 1. Context
 
