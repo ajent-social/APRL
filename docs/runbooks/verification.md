@@ -11,3 +11,5 @@ Hosted Ubuntu qualifies Linux-native process identity/group handling only when i
 Negative control: remove a required fixture URL for an explicit integration/system test; require a nonzero command and actual named failed event, no skip. Restore the exact owned environment and require that test to pass. Record separate failing/restored outputs. Never use missing environment as a skip permission.
 
 Record exact reviewed source, hosted run URL/head, event totals, commands and remaining prerequisites after execution. Pending hosted runs are not green evidence. Independent first-class T1.19.R review blocks merge until accepted exact head and verified landing.
+
+Local T1.19 preflight: removing `TEST_DATABASE_URL` executed `TestFoundationFaultsDuplicateAndStaleHTTPResults` and failed with a required-fixture setup error, with no skipped event. Restoring the exact owned fixture environment passed that named case. Recursive gofmt/goimports checks passed on all Go source files. The unchanged landed Go source already passed315normal/315race terminal events, zero skips, build/vet/lint; hosted Ubuntu results must be recorded separately before claiming Linux qualification.
