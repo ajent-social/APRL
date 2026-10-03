@@ -262,8 +262,8 @@ func migrationAssertCoreTables(ctx context.Context, t *testing.T, database testu
 	if err := database.Pool.QueryRow(ctx, `SELECT count(*) FROM information_schema.tables WHERE table_schema = $1 AND table_type = 'BASE TABLE'`, database.Schema).Scan(&count); err != nil {
 		t.Fatalf("count tables in owned schema: %v", err)
 	}
-	if count != 19 {
-		t.Fatalf("owned schema table count = %d, want 19", count)
+	if count != 20 {
+		t.Fatalf("owned schema table count = %d, want 20", count)
 	}
 	var applied bool
 	if err := database.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = '001_core')`).Scan(&applied); err != nil {
@@ -271,6 +271,12 @@ func migrationAssertCoreTables(ctx context.Context, t *testing.T, database testu
 	}
 	if !applied {
 		t.Fatal("core schema version was not recorded")
+	}
+	if err := database.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = '004_delegations')`).Scan(&applied); err != nil {
+		t.Fatalf("read delegation migration ledger: %v", err)
+	}
+	if !applied {
+		t.Fatal("delegation schema version was not recorded")
 	}
 }
 
