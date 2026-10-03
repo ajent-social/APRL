@@ -1,0 +1,155 @@
+name: APRL checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Linux service-backed quality and serialized test lanes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: aprl
+          POSTGRES_PASSWORD: aprl
+          POSTGRES_DB: aprl_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aprl -d aprl_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://aprl:aprl@127.0.0.1:5432/aprl_test?sslmode=disable
+      TEST_REDIS_URL: redis://127.0.0.1:6379/0
+      TEST_RESOURCE_OWNER: aprl-ci-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Go 1.27.1
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: 1.27.1
+          cache: true
+
+      - name: Install pinned goimports
+        run: go install golang.org/x/tools/cmd/goimports@v0.50.0
+
+      - name: Require clean Go formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' gofiles < <(git ls-files -z -- '*.go')
+          if ((${#gofiles[@]} == 0)); then
+            echo 'no tracked Go source files found'
+            exit 1
+          fi
+          gofmt_files="$(gofmt -l "${gofiles[@]}")"
+          if [[ -n "$gofmt_files" ]]; then
+            printf 'gofmt changes required:\n%s\n' "$gofmt_files"
+            exit 1
+          fi
+          goimports_files="$(goimports -l "${gofiles[@]}")"
+          if [[ -n "$goimports_files" ]]; then
+            printf 'goimports changes required:\n%s\n' "$goimports_files"
+            exit 1
+          fi
+
+      - name: Vet all packages
+        run: go vet ./...
+
+      - name: Run golangci-lint v2.14.0
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a
+        with:
+          version: v2.14.0
+          args: --timeout=5m ./...
+
+      - name: Run regular and race tests with event accounting
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_file="$RUNNER_TEMP/aprl-go-packages.txt"
+          go list ./... > "$package_file"
+          if [[ ! -s "$package_file" ]]; then
+            echo 'go list returned no packages'
+            exit 1
+          fi
+
+          run_test_lane() {
+            local lane="$1"
+            shift
+            local event_file="$RUNNER_TEMP/aprl-${lane}-test-events.jsonl"
+            local go_status tee_status
+            set +e
+            go test -json "$@" ./... -count=1 | tee "$event_file"
+            local pipeline_status=("${PIPESTATUS[@]}")
+            set -e
+            go_status="${pipeline_status[0]}"
+            tee_status="${pipeline_status[1]}"
+
+            if [[ "$go_status" -ne 0 || "$tee_status" -ne 0 ]]; then
+              printf '%s pipeline failed: go test exit=%s, tee exit=%s\n' "$lane" "$go_status" "$tee_status"
+              return 1
+            fi
+
+            local total passed failed skipped
+            read -r total passed failed skipped < <(python3 - "$event_file" "$package_file" <<'PYTESTJSON'
+          import json
+          import sys
+
+          event_path, package_path = sys.argv[1:]
+          counts = {"pass": 0, "fail": 0, "skip": 0}
+          package_results = set()
+          with open(event_path, encoding="utf-8") as events:
+              for line_number, line in enumerate(events, 1):
+                  try:
+                      event = json.loads(line)
+                  except json.JSONDecodeError as error:
+                      raise SystemExit(f"invalid or truncated JSON event at line {line_number}: {error}") from error
+                  action = event.get("Action")
+                  if event.get("Package") and action in counts and not event.get("Test"):
+                      package_results.add(event["Package"])
+                  if event.get("Test") and action in counts:
+                      counts[action] += 1
+          with open(package_path, encoding="utf-8") as packages:
+              expected_packages = {line.strip() for line in packages if line.strip()}
+          missing = expected_packages - package_results
+          unexpected = package_results - expected_packages
+          if missing or unexpected:
+              raise SystemExit(
+                  f"incomplete package event log: missing={sorted(missing)}, unexpected={sorted(unexpected)}"
+              )
+          total = sum(counts.values())
+          print(total, counts["pass"], counts["fail"], counts["skip"])
+          PYTESTJSON
+            )
+            printf '%s terminal test events: total=%s pass=%s fail=%s skip=%s\n' "$lane" "$total" "$passed" "$failed" "$skipped"
+
+            if [[ "$total" -le 0 || "$failed" -ne 0 || "$skipped" -ne 0 ]]; then
+              printf '%s test lane requires positive terminal test events, zero failures and zero skips\n' "$lane"
+              return 1
+            fi
+          }
+
+          run_test_lane regular || exit "$?"
+          run_test_lane race -race || exit "$?"
