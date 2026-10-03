@@ -456,9 +456,6 @@ func TestDeliveryV1ObservationEnumsBindingsAndGraphs(t *testing.T) {
 		{"duplicate dependency", func(o *DeliveryV1Observation) {
 			o.Children = []DeliveryV1ChildTask{{ID: "x", Kind: "author", State: "pending"}, {ID: "y", Kind: "review", State: "pending", DependsOn: []string{"x", "x"}}}
 		}},
-		{"duplicate findings", func(o *DeliveryV1Observation) {
-			o.Children = []DeliveryV1ChildTask{{ID: "x", Kind: "fix", State: "pending", FindingIDs: []string{"f", "f"}}}
-		}},
 		{"invalid PR URL", func(o *DeliveryV1Observation) {
 			o.Children = []DeliveryV1ChildTask{{ID: "x", Kind: "review", State: "ready", PRURL: "https://evil.example/pull/1", HeadCommit: strings.Repeat("a", 40)}}
 		}},
@@ -481,6 +478,22 @@ func TestDeliveryV1ObservationEnumsBindingsAndGraphs(t *testing.T) {
 				t.Fatalf("Validate error = %v, want ErrDeliveryV1Invalid", err)
 			}
 		})
+	}
+}
+
+func TestDeliveryV1ObservationAllowsRepeatedFindingReferences(t *testing.T) {
+	request := deliveryV1Request(t)
+	digest, err := request.Digest()
+	if err != nil {
+		t.Fatalf("request digest: %v", err)
+	}
+	observation := deliveryV1Observation(request, digest)
+	observation.Children = []DeliveryV1ChildTask{{
+		ID: "fix-1", Kind: "fix", State: "pending",
+		FindingIDs: []string{"finding-1", "finding-1"},
+	}}
+	if err := observation.Validate(request); err != nil {
+		t.Fatalf("caller-valid repeated finding references rejected: %v", err)
 	}
 }
 
