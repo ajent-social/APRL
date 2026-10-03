@@ -78,3 +78,6 @@ Independent wave-6 review reopened the delivery boundary for a concrete consumer
 - Genuine-red: disabling the host outcome verifier caused the actual forged-merge integration case to fail; exact source restoration passes. No compile error or skipped fixture is counted as the negative proof.
 - Independent source reviews accepted contract/adapter and coordinator state/store changes. The PR delivery task remains pending current-head review, guarded merge and actual landed verification.
 - The shared generic provider/parser/pool bridge has independent review, 19 focused Python passes and verified repository landing. No provider endpoint, credentials or runtime profile is activated by this slice; external protocol/runtime interoperability and the remaining E1/E6 gates are pending.
+
+
+Broker source qualification (2026-10-03): source 4df8973 passed 22 actual race-test cases, zero skips/failures, affected broker/integration vet and lint. The valid C-role out-of-branch denial regression genuinely failed with only the branch guard removed, then passed after exact source restoration. No remote transport mutations were performed by tests; no production credentials or runtime activation. Owned gofmt/goimports diffs are empty. Independent PR delivery remains pending.
