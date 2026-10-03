@@ -303,6 +303,51 @@ func TestBroker(t *testing.T) {
 		}
 	})
 
+	t.Run("merge_requires_receipt_for_exact_reviewed_source_head", func(t *testing.T) {
+		for _, phase := range []string{"execute", "lookup"} {
+			for _, head := range []string{"mismatched", "empty"} {
+				t.Run(phase+"_"+head, func(t *testing.T) {
+					f := brokerNewFixture(t, database, "ci_reconcile", "A", "READY_TO_MERGE", true)
+					f.configureMerge(t)
+					if _, err := database.Pool.Exec(ctx, `UPDATE prs SET approved_head_sha=$2,approved_base_sha=$3,human_approval_id='approval-head-bound' WHERE task_id=$1::uuid`,
+						f.taskID, brokerTestHead, brokerTestBase); err != nil {
+						t.Fatal(err)
+					}
+					receiptHead := "different-reviewed-head"
+					if head == "empty" {
+						receiptHead = ""
+					}
+					badReceipt := broker.RemoteReceipt{RemoteID: "remote-merge", HeadSHA: receiptHead, Merged: true}
+					if phase == "execute" {
+						f.transport.setNextReceipt(badReceipt)
+						operation, err := f.service.Merge(ctx, f.taskID, f.operationID)
+						if !errors.Is(err, broker.ErrUnknown) || operation.Status != "UNKNOWN" {
+							t.Fatalf("mismatched execute receipt=(%+v,%v), want UNKNOWN", operation, err)
+						}
+					} else {
+						f.transport.failNextExecution()
+						operation, err := f.service.Merge(ctx, f.taskID, f.operationID)
+						if !errors.Is(err, broker.ErrUnknown) || operation.Status != "UNKNOWN" {
+							t.Fatalf("ambiguous merge execute=(%+v,%v), want UNKNOWN", operation, err)
+						}
+						f.transport.setLookupObservation(broker.RemoteObservation{Applied: true, Receipt: badReceipt})
+						operation, err = f.service.Merge(ctx, f.taskID, f.operationID)
+						if !errors.Is(err, broker.ErrUnknown) {
+							t.Fatalf("mismatched lookup receipt=(%+v,%v), want UNKNOWN", operation, err)
+						}
+					}
+					var status string
+					if err := database.Pool.QueryRow(ctx, `SELECT status FROM github_operations WHERE id=$1::uuid`, f.operationID).Scan(&status); err != nil {
+						t.Fatal(err)
+					}
+					if status != "UNKNOWN" || f.transport.countExecutions() != 1 {
+						t.Fatalf("durable merge status=%q, executions=%d; want UNKNOWN and one mutation attempt", status, f.transport.countExecutions())
+					}
+				})
+			}
+		}
+	})
+
 	t.Run("merge_admission_serializes_with_pause", func(t *testing.T) {
 		f := brokerNewFixture(t, database, "ci_reconcile", "A", "READY_TO_MERGE", true)
 		f.configureMerge(t)
@@ -496,17 +541,19 @@ func optionalSHAValue(value string) any {
 }
 
 type brokerTestTransport struct {
-	mu         sync.Mutex
-	remote     broker.RemotePullRequest
-	checks     []ci.Observation
-	files      []string
-	events     []string
-	calls      int
-	operations []broker.RemoteOperation
-	applied    map[string]broker.RemoteReceipt
-	fail       bool
-	started    chan struct{}
-	release    chan struct{}
+	mu                sync.Mutex
+	remote            broker.RemotePullRequest
+	checks            []ci.Observation
+	files             []string
+	events            []string
+	calls             int
+	operations        []broker.RemoteOperation
+	applied           map[string]broker.RemoteReceipt
+	nextReceipt       *broker.RemoteReceipt
+	lookupObservation *broker.RemoteObservation
+	fail              bool
+	started           chan struct{}
+	release           chan struct{}
 }
 
 func (f *brokerTestTransport) PullRequest(_ context.Context, _ string, _ int64) (broker.RemotePullRequest, error) {
@@ -533,6 +580,8 @@ func (f *brokerTestTransport) Execute(_ context.Context, operation broker.Remote
 	f.events = append(f.events, "execute:"+operation.ID)
 	f.operations = append(f.operations, operation)
 	started, release, shouldFail := f.started, f.release, f.fail
+	nextReceipt := f.nextReceipt
+	f.nextReceipt = nil
 	f.fail = false
 	if !brokerTestCapability(operation.ApplicationRole, operation.Action) || operation.Force {
 		f.mu.Unlock()
@@ -568,7 +617,14 @@ func (f *brokerTestTransport) Execute(_ context.Context, operation broker.Remote
 	if shouldFail {
 		return broker.RemoteReceipt{}, errors.New("ambiguous fixture timeout")
 	}
-	receipt := broker.RemoteReceipt{RemoteID: "remote-" + operation.ID, HeadSHA: operation.HeadSHA, Merged: operation.Action == broker.ActionMerge}
+	receiptHead := operation.HeadSHA
+	if operation.Action == broker.ActionMerge {
+		receiptHead = operation.ExpectedHeadSHA
+	}
+	receipt := broker.RemoteReceipt{RemoteID: "remote-" + operation.ID, HeadSHA: receiptHead, Merged: operation.Action == broker.ActionMerge}
+	if nextReceipt != nil {
+		receipt = *nextReceipt
+	}
 	f.mu.Lock()
 	f.applied[operation.ID] = receipt
 	f.mu.Unlock()
@@ -579,10 +635,25 @@ func (f *brokerTestTransport) Lookup(_ context.Context, operationID, _ string) (
 	defer f.mu.Unlock()
 	f.calls++
 	f.events = append(f.events, "lookup:"+operationID)
+	if f.lookupObservation != nil {
+		observation := *f.lookupObservation
+		f.lookupObservation = nil
+		return observation, nil
+	}
 	receipt, ok := f.applied[operationID]
 	return broker.RemoteObservation{Applied: ok, Receipt: receipt}, nil
 }
 func (f *brokerTestTransport) failNextExecution() { f.mu.Lock(); defer f.mu.Unlock(); f.fail = true }
+func (f *brokerTestTransport) setNextReceipt(receipt broker.RemoteReceipt) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.nextReceipt = &receipt
+}
+func (f *brokerTestTransport) setLookupObservation(observation broker.RemoteObservation) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lookupObservation = &observation
+}
 func (f *brokerTestTransport) setChangedFiles(files []string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
