@@ -646,10 +646,20 @@ func delegationStateMatchesRequest(request DeliveryV1Request, authorization Deli
 }
 
 func delegationOnlyLateFacts(oldState, newState State, allowCancelOnly bool) bool {
-	if !reflect.DeepEqual(oldState.Tasks, newState.Tasks) || !reflect.DeepEqual(oldState.Attempts, newState.Attempts) || !reflect.DeepEqual(oldState.Claims, newState.Claims) || !reflect.DeepEqual(oldState.Completed, newState.Completed) {
+	if !reflect.DeepEqual(oldState.Lifecycle, newState.Lifecycle) || oldState.StartedAt != newState.StartedAt ||
+		!reflect.DeepEqual(oldState.Tasks, newState.Tasks) || !reflect.DeepEqual(oldState.Attempts, newState.Attempts) ||
+		!reflect.DeepEqual(oldState.Claims, newState.Claims) || !reflect.DeepEqual(oldState.Completed, newState.Completed) ||
+		!reflect.DeepEqual(oldState.CurrentPR, newState.CurrentPR) || oldState.DeliveryReceiptID != newState.DeliveryReceiptID ||
+		oldState.EscalationReason != newState.EscalationReason || newState.Revision != oldState.Revision {
 		return false
 	}
 	added := 0
+	for id, oldReceipt := range oldState.Receipts {
+		newReceipt, exists := newState.Receipts[id]
+		if !exists || !reflect.DeepEqual(oldReceipt, newReceipt) {
+			return false
+		}
+	}
 	for id, receipt := range newState.Receipts {
 		if _, exists := oldState.Receipts[id]; exists {
 			continue
@@ -737,6 +747,9 @@ func (s *Store) delegationReady(ctx context.Context, lifecycleID string, state S
 		return false, fmt.Errorf("decode exact delegation expiry: %w", ErrDelegationConflict)
 	}
 	if !now.Before(expiresAt) || maxAttempts <= 0 || maxConcurrent <= 0 || maxConcurrent > deliveryV1MaxConcurrent {
+		return false, nil
+	}
+	if err := state.ValidateAt(now); err != nil {
 		return false, nil
 	}
 	attempts, err := delegationAttemptCount(state.Attempts)
