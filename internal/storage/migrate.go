@@ -38,26 +38,35 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	var ledgerExists bool
 	if err := tx.QueryRow(ctx, `SELECT to_regclass('schema_migrations') IS NOT NULL`).Scan(&ledgerExists); err != nil {
-		return fmt.Errorf("inspect schema migration ledger: %w", err)
+		return fmt.Errorf("inspect migration ledger: %w", err)
 	}
-	if ledgerExists {
-		var applied bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`, migrations.CoreVersion).Scan(&applied); err != nil {
-			return fmt.Errorf("read schema migration ledger: %w", err)
+	planSQL, err := migrations.ReadPlanTasks()
+	if err != nil {
+		return fmt.Errorf("read plan task migration: %w", err)
+	}
+	for _, migration := range []struct {
+		version string
+		sql     []byte
+	}{{migrations.CoreVersion, sql}, {"002_plan_tasks", planSQL}} {
+		applied := false
+		if ledgerExists {
+			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version=$1)`, migration.version).Scan(&applied); err != nil {
+				return fmt.Errorf("read migration ledger: %w", err)
+			}
 		}
 		if applied {
-			if err := tx.Commit(ctx); err != nil {
-				return fmt.Errorf("commit schema migration check: %w", err)
-			}
-			return nil
+			continue
+		}
+		if _, err := tx.Exec(ctx, string(migration.sql)); err != nil {
+			return fmt.Errorf("apply migration %s: %w", migration.version, err)
+		}
+		ledgerExists = true
+		if _, err := tx.Exec(ctx, `INSERT INTO schema_migrations(version) VALUES($1) ON CONFLICT DO NOTHING`, migration.version); err != nil {
+			return fmt.Errorf("record migration %s: %w", migration.version, err)
 		}
 	}
-
-	if _, err := tx.Exec(ctx, string(sql)); err != nil {
-		return fmt.Errorf("apply core schema migration %s: %w", migrations.CoreVersion, err)
-	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit core schema migration %s: %w", migrations.CoreVersion, err)
+		return fmt.Errorf("commit migrations: %w", err)
 	}
 	return nil
 }
