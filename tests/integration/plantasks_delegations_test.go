@@ -58,7 +58,7 @@ func TestPlanDelegationTemporaryDecisionPersistsIntentAndRetriesSameBinding(t *t
 	if intent.Status != plantasks.DelegationIntent || intent.LifecycleID != "" || intent.State != nil {
 		t.Fatalf("temporary decision created lifecycle or lost intent: %+v", intent)
 	}
-	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
+	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(ctx, t, db.Pool, request.CallerID, request.DelegationID)
 	if intentCount != 1 || lifecycleCount != 0 || receiptCount != 0 {
 		t.Fatalf("temporary decision persisted counts binding/lifecycle/receipts=%d/%d/%d, want 1/0/0", intentCount, lifecycleCount, receiptCount)
 	}
@@ -80,7 +80,7 @@ func TestPlanDelegationTemporaryDecisionPersistsIntentAndRetriesSameBinding(t *t
 	if admitted.State.Lifecycle.Limits.MaxAttempts != request.Spec.Envelope.MaxAttempts || admitted.State.Lifecycle.Limits.MaxConcurrentTasks != request.Spec.Envelope.MaxConcurrent {
 		t.Fatalf("initial limits do not preserve envelope: limits=%+v envelope=%+v", admitted.State.Lifecycle.Limits, request.Spec.Envelope)
 	}
-	intentCount, lifecycleCount, receiptCount = plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
+	intentCount, lifecycleCount, receiptCount = plantasksDelegationCounts(ctx, t, db.Pool, request.CallerID, request.DelegationID)
 	if intentCount != 1 || lifecycleCount != 1 || receiptCount != 0 {
 		t.Fatalf("admitted counts binding/lifecycle/receipts=%d/%d/%d, want 1/1/0", intentCount, lifecycleCount, receiptCount)
 	}
@@ -133,7 +133,7 @@ func TestPlanDelegationDenialIsTerminalAndCreatesNoLifecycle(t *testing.T) {
 	if replay.Status != plantasks.DelegationDenied || replay.LifecycleID != "" || replay.Sequence != denied.Sequence || policy.callCount() != calls {
 		t.Fatalf("denied replay changed terminal binding or re-ran policy: first=%+v replay=%+v calls=%d->%d", denied, replay, calls, policy.callCount())
 	}
-	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
+	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(ctx, t, db.Pool, request.CallerID, request.DelegationID)
 	if intentCount != 1 || lifecycleCount != 0 || receiptCount != 0 {
 		t.Fatalf("denied counts binding/lifecycle/receipts=%d/%d/%d, want 1/0/0", intentCount, lifecycleCount, receiptCount)
 	}
@@ -175,7 +175,7 @@ func TestPlanDelegationChangedRequestConflictsWithoutSecondLifecycle(t *testing.
 	if after.LifecycleID != first.LifecycleID || after.RequestDigest != first.RequestDigest || after.Sequence != first.Sequence || len(after.State.Tasks) != len(first.State.Tasks) {
 		t.Fatalf("changed request mutated durable admission: before=%+v after=%+v", first, after)
 	}
-	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
+	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(ctx, t, db.Pool, request.CallerID, request.DelegationID)
 	if intentCount != 1 || lifecycleCount != 1 || receiptCount != 0 {
 		t.Fatalf("changed request counts binding/lifecycle/receipts=%d/%d/%d, want 1/1/0", intentCount, lifecycleCount, receiptCount)
 	}
@@ -233,7 +233,7 @@ func TestPlanDelegationConcurrentIdenticalSubmitCreatesOneLifecycle(t *testing.T
 			t.Errorf("concurrent replay changed lifecycle or observation: first=%+v current=%+v", first, binding)
 		}
 	}
-	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
+	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(ctx, t, db.Pool, request.CallerID, request.DelegationID)
 	if first.LifecycleID == "" || intentCount != 1 || lifecycleCount != 1 || receiptCount != 0 {
 		t.Fatalf("concurrent create result/counts binding/lifecycle/receipts=%+v/%d/%d/%d, want one lifecycle and binding", first, intentCount, lifecycleCount, receiptCount)
 	}
@@ -283,7 +283,7 @@ func TestPlanDelegationAdmissionCommitFailureLeavesIntentAndNoLifecycle(t *testi
 	if binding.Status != plantasks.DelegationIntent || binding.LifecycleID != "" || binding.State != nil {
 		t.Fatalf("failed final bind left partial admission: %+v", binding)
 	}
-	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
+	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(ctx, t, db.Pool, request.CallerID, request.DelegationID)
 	if intentCount != 1 || lifecycleCount != 0 || receiptCount != 0 {
 		t.Fatalf("failed final bind counts binding/lifecycle/receipts=%d/%d/%d, want 1/0/0", intentCount, lifecycleCount, receiptCount)
 	}
@@ -457,7 +457,7 @@ func plantasksDelegationRepository(repositoryURL, target string) plantasks.Repos
 	return plantasks.Repository{Owner: parts[0], Name: parts[1], Target: target}
 }
 
-func plantasksDelegationCounts(t *testing.T, ctx context.Context, pool *pgxpool.Pool, callerID, delegationID string) (int, int, int) {
+func plantasksDelegationCounts(ctx context.Context, t *testing.T, pool *pgxpool.Pool, callerID, delegationID string) (int, int, int) {
 	t.Helper()
 	var bindingCount, lifecycleCount, receiptCount int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM plan_delegations WHERE caller_id=$1 AND delegation_id=$2`, callerID, delegationID).Scan(&bindingCount); err != nil {
@@ -499,7 +499,7 @@ func TestPlanDelegationMalformedAndCrossCallerRequestsCreateNoBinding(t *testing
 	if _, err := ownerService.Submit(ctx, []byte("{")); !errors.Is(err, plantasks.ErrDeliveryV1Malformed) {
 		t.Fatalf("malformed body error = %v, want ErrDeliveryV1Malformed", err)
 	}
-	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
+	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(ctx, t, db.Pool, request.CallerID, request.DelegationID)
 	if intentCount != 0 || lifecycleCount != 0 || receiptCount != 0 {
 		t.Fatalf("malformed or cross-caller request persisted binding/lifecycle/receipts=%d/%d/%d, want 0/0/0", intentCount, lifecycleCount, receiptCount)
 	}
@@ -576,7 +576,7 @@ func TestPlanDelegationOneAttemptDenialDoesNotCreateLifecycleOrCallFactory(t *te
 	if factory.calls.Load() != 0 {
 		t.Fatalf("initial-state factory called %d times for denied one-attempt request", factory.calls.Load())
 	}
-	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
+	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(ctx, t, db.Pool, request.CallerID, request.DelegationID)
 	if intentCount != 1 || lifecycleCount != 0 || receiptCount != 0 {
 		t.Fatalf("one-attempt denial counts binding/lifecycle/receipts=%d/%d/%d, want 1/0/0", intentCount, lifecycleCount, receiptCount)
 	}
@@ -648,7 +648,7 @@ func TestPlanDelegationConcurrentChangedDigestsHaveOneWinner(t *testing.T) {
 	if binding.LifecycleID != lifecycleID || binding.RequestDigest != digest {
 		t.Fatalf("winner changed after competing request: got %+v", binding)
 	}
-	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, firstRequest.CallerID, firstRequest.DelegationID)
+	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(ctx, t, db.Pool, firstRequest.CallerID, firstRequest.DelegationID)
 	if intentCount != 1 || lifecycleCount != 1 || receiptCount != 0 {
 		t.Fatalf("changed-digest race persisted binding/lifecycle/receipts=%d/%d/%d, want 1/1/0", intentCount, lifecycleCount, receiptCount)
 	}
@@ -802,7 +802,7 @@ func TestPlanDelegationCancelFencesInFlightIntentAuthorization(t *testing.T) {
 	if current.Status != plantasks.DelegationCancelled || current.LifecycleID != "" || current.State != nil {
 		t.Fatalf("authorization race produced a lifecycle after cancel: %+v", current)
 	}
-	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
+	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(ctx, t, db.Pool, request.CallerID, request.DelegationID)
 	if intentCount != 1 || lifecycleCount != 0 || receiptCount != 0 || factory.calls.Load() != 0 {
 		t.Fatalf("cancel/auth race persisted binding/lifecycle/receipts=%d/%d/%d factoryCalls=%d", intentCount, lifecycleCount, receiptCount, factory.calls.Load())
 	}
@@ -1100,7 +1100,7 @@ func TestPlanDelegationRechecksExactExpiryAfterLocalAuthorizationVerification(t 
 	if !manual.Now().After(request.Spec.Envelope.ExpiresAt) || policy.verifyCount() != 1 {
 		t.Fatalf("expiry was not rechecked after local verification: now=%s expiry=%s verifyCalls=%d", manual.Now().Format(time.RFC3339Nano), request.Spec.Envelope.ExpiresAt.Format(time.RFC3339Nano), policy.verifyCount())
 	}
-	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
+	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(ctx, t, db.Pool, request.CallerID, request.DelegationID)
 	if intentCount != 1 || lifecycleCount != 0 || receiptCount != 0 {
 		t.Fatalf("late local verification persisted binding/lifecycle/receipts=%d/%d/%d, want 1/0/0", intentCount, lifecycleCount, receiptCount)
 	}
@@ -1200,7 +1200,7 @@ func TestPlanDelegationRechecksExactExpiryAfterLifecyclePersistence(t *testing.T
 	if result.binding.Status != plantasks.DelegationDenied || result.binding.State != nil || result.binding.LifecycleID != "" {
 		t.Fatalf("post-persistence expiry did not return terminal denial without lifecycle: %+v", result.binding)
 	}
-	bindingCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
+	bindingCount, lifecycleCount, receiptCount := plantasksDelegationCounts(ctx, t, db.Pool, request.CallerID, request.DelegationID)
 	if bindingCount != 1 || lifecycleCount != 0 || receiptCount != 0 {
 		t.Fatalf("post-persistence expiry retained lifecycle artifacts: binding=%d lifecycle=%d receipts=%d", bindingCount, lifecycleCount, receiptCount)
 	}
@@ -1208,7 +1208,7 @@ func TestPlanDelegationRechecksExactExpiryAfterLifecyclePersistence(t *testing.T
 	if err != nil || replay.Status != plantasks.DelegationDenied || replay.Sequence != result.binding.Sequence {
 		t.Fatalf("expiry denial replay changed result: binding=%+v err=%v", replay, err)
 	}
-	if b, l, r := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID); b != 1 || l != 0 || r != 0 {
+	if b, l, r := plantasksDelegationCounts(ctx, t, db.Pool, request.CallerID, request.DelegationID); b != 1 || l != 0 || r != 0 {
 		t.Fatalf("expiry denial replay changed durable rows: binding=%d lifecycle=%d receipts=%d", b, l, r)
 	}
 }
@@ -1330,7 +1330,7 @@ func TestPlanDelegationAlreadyExpiredRequestDeniesBeforeFactoryOrLocalVerify(t *
 	if factory.calls.Load() != 0 || policy.verifyCount() != 0 {
 		t.Fatalf("expired request crossed trusted construction/local verification: factory=%d verify=%d", factory.calls.Load(), policy.verifyCount())
 	}
-	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
+	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(ctx, t, db.Pool, request.CallerID, request.DelegationID)
 	if intentCount != 1 || lifecycleCount != 0 || receiptCount != 0 {
 		t.Fatalf("expired request counts binding/lifecycle/receipts=%d/%d/%d, want 1/0/0", intentCount, lifecycleCount, receiptCount)
 	}
