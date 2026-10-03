@@ -109,21 +109,26 @@ Acceptance: T1.1-T1.19 pass on owned test services; a signed event completes thr
   - Scope/contract: [docs/tasks/T1.14.md](tasks/T1.14.md); exact owned files and verification commands are listed there.
   - S1.14.1 Verify: Race push webhook and completion for one operation and assert exactly one generation transition/reply intent set. Run the scoped tests, then formatter/linter checks after code changes.
 - [x] T1.13.F1 Bind confirmed merge receipts to the reviewed source head  Owner: broker kind: agent stage: fix delivery-gate: T1.13.F1.R lane: agent blocked-by: [T1.13.R] acc: [merge confirmation requires nonempty exact reviewed source head; mismatched Execute and Lookup remain UNKNOWN; real PostgreSQL regressions and corrective PR handoff]
-- [ ] T1.13.F1.R Independently review and deliver exact-head merge receipt correction  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/6 blocked-by: [T1.13.F1] acc: [fresh exact-head source review, guarded merge and actual landing verified]
-- [ ] T1.15 Reconcile durable jobs and ambiguous remote operations  Owner: recovery  Est: 90m  kind: agent  verifies: [UC-008, UC-009]  deps: [T1.9, T1.13.R, T1.13.F1.R, T1.14]  acc: [Queue loss republishes unfinished work; expired leases fence before replacement; UNKNOWN GitHub writes query fake remote state before retry; labels repair without state advancement; merged state requires remote confirmation.]  blocked-by: [T1.9, T1.13.R, T1.13.F1.R, T1.14]  lane: agent
+- [x] T1.13.F1.R Independently review and deliver exact-head merge receipt correction  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/6 blocked-by: [T1.13.F1] acc: [fresh exact-head source review, guarded merge and actual landing verified]
+- [ ] T1.15 Reconcile durable jobs and ambiguous remote operations  Owner: recovery  Est: 90m  kind: agent stage: author delivery-gate: T1.15.R  verifies: [UC-008, UC-009]  deps: [T1.9, T1.13.R, T1.13.F1.R, T1.14]  acc: [Queue loss republishes unfinished work; expired leases fence before replacement; UNKNOWN GitHub writes query fake remote state before retry; labels repair without state advancement; merged state requires remote confirmation.]  blocked-by: [T1.9, T1.13.R, T1.13.F1.R, T1.14]  lane: agent
   - Scope/contract: [docs/tasks/T1.15.md](tasks/T1.15.md); exact owned files and verification commands are listed there.
+- [ ] T1.15.R Independently review and deliver T1.15 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T1.15] acc: [exact-head independent acceptance, guarded merge and actual landing verified]
   - S1.15.1 Verify: Simulate accepted merge plus timeout and assert reconciliation confirms instead of issuing a second merge. Run the scoped tests, then formatter/linter checks after code changes.
-- [ ] T1.16 Supervise bounded fixture worker processes  Owner: supervisor  Est: 90m  kind: agent  verifies: [UC-005, UC-007, UC-008]  deps: [T1.8, T1.10, T1.11]  acc: [Supervisor launches only the owned fake-agent fixture, records process/run identity, heartbeat, timeout and result; pause kills process group after TERM/KILL grace and fences IPC; cleans only owned task workspaces. Actual OCI/Codex sandbox is deferred to E2. Fixture execution is available only through test injection; production configuration cannot select it. Test production startup rejects a missing OCI adapter instead of running a fake worker.]  blocked-by: [T1.8, T1.10, T1.11]  lane: agent
+- [x] T1.16 Supervise bounded fixture worker processes  Owner: supervisor  Est: 90m  kind: agent stage: author delivery-gate: T1.16.R  verifies: [UC-005, UC-007, UC-008]  deps: [T1.8, T1.10, T1.11]  acc: [Supervisor launches only the owned fake-agent fixture, records process/run identity, heartbeat, timeout and result; pause kills process group after TERM/KILL grace and fences IPC; cleans only owned task workspaces. Actual OCI/Codex sandbox is deferred to E2. Fixture execution is available only through test injection; production configuration cannot select it. Test production startup rejects a missing OCI adapter instead of running a fake worker.]  blocked-by: [T1.8, T1.10, T1.11]  lane: agent
   - Scope/contract: [docs/tasks/T1.16.md](tasks/T1.16.md); exact owned files and verification commands are listed there.
+- [ ] T1.16.R Independently review and deliver T1.16 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T1.16] acc: [exact-head independent acceptance, guarded merge and actual landing verified]
   - S1.16.1 Verify: Make the fixture ignore TERM and verify KILL plus stale-result denial after the configured grace. Run the scoped tests, then formatter/linter checks after code changes.
-- [ ] T1.17 Assemble separately supervised service roles and health APIs  Owner: coordinator  Est: 90m  kind: agent  verifies: [UC-008, UC-009]  deps: [T1.6, T1.9, T1.14, T1.15, T1.16]  acc: [Commands api/control/worker start separate roles with shared contracts. GET /healthz returns 200 status alive; GET /readyz returns 200 status ready only with DB/role dependencies available, otherwise 503 status not_ready with dependency names and no secrets. Control loops use bounded polling, persisted deadlines, signal-driven shutdown and no queue-held locks while waiting on CI. API/control roles can run in the foundation; production worker startup fails closed until E2 supplies the real OCI/provider adapters. Tests may inject fixture adapters but deployment flags cannot enable them.]  blocked-by: [T1.6, T1.9, T1.14, T1.15, T1.16]  lane: agent
+- [ ] T1.17 Assemble separately supervised service roles and health APIs  Owner: coordinator  Est: 90m  kind: agent stage: author delivery-gate: T1.17.R  verifies: [UC-008, UC-009]  deps: [T1.6, T1.9, T1.14, T1.15.R, T1.16.R, T8.6.R]  acc: [Commands api/control/worker start separate roles with shared contracts. GET /healthz returns 200 status alive; GET /readyz returns 200 status ready only with DB/role dependencies available, otherwise 503 status not_ready with dependency names and no secrets. Control loops use bounded polling, persisted deadlines, signal-driven shutdown and no queue-held locks while waiting on CI. API/control roles can run in the foundation; production worker startup fails closed until E2 supplies the real OCI/provider adapters. Tests may inject fixture adapters but deployment flags cannot enable them.]  blocked-by: [T1.6, T1.9, T1.14, T1.15.R, T1.16.R, T8.6.R]  lane: agent
   - Scope/contract: [docs/tasks/T1.17.md](tasks/T1.17.md); exact owned files and verification commands are listed there.
+- [ ] T1.17.R Independently review and deliver T1.17 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T1.17] acc: [exact-head independent acceptance, guarded merge and actual landing verified]
   - S1.17.1 Verify: Stop a required backing service and assert readiness 503 while liveness remains 200. Run the scoped tests, then formatter/linter checks after code changes.
-- [ ] T1.18 Prove the foundation crash/cancellation vertical slice  Owner: coordinator  Est: 90m  kind: agent  verifies: [UC-005, UC-007, UC-008, UC-010]  deps: [T1.17]  acc: [Real Postgres/Redis plus fake GitHub/inference execute signed receipt -> routing -> dispatch -> lease -> result; restart at each seam, Redis loss, duplicate delivery, stale result, budget race, pause, and ambiguous write all satisfy invariants. No live agents or merges enabled.]  lane: agent  blocked-by: [T1.17]
+- [ ] T1.18 Prove the foundation crash/cancellation vertical slice  Owner: coordinator  Est: 90m  kind: agent stage: author delivery-gate: T1.18.R  verifies: [UC-005, UC-007, UC-008, UC-010]  deps: [T1.17.R]  acc: [Real Postgres/Redis plus fake GitHub/inference execute signed receipt -> routing -> dispatch -> lease -> result; restart at each seam, Redis loss, duplicate delivery, stale result, budget race, pause, and ambiguous write all satisfy invariants. No live agents or merges enabled.]  lane: agent  blocked-by: [T1.17.R]
   - Scope/contract: [docs/tasks/T1.18.md](tasks/T1.18.md); exact owned files and verification commands are listed there.
+- [ ] T1.18.R Independently review and deliver T1.18 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T1.18] acc: [exact-head independent acceptance, guarded merge and actual landing verified]
   - S1.18.1 Verify: Disable the generation guard in an owned test worktree and observe the stale-result regression fail; restore and report both outcomes. Run the scoped tests, then formatter/linter checks after code changes.
-- [ ] T1.19 Install scoped quality gates and record foundation handoff  Owner: coordinator  Est: 60m  kind: agent  verifies: [infrastructure, UC-008]  deps: [T1.18]  acc: [CI runs gofmt/goimports, go vet, golangci-lint and unit/API/integration/system tests with real service fixtures and no silent integration skips; unsupported paid-execution capability stays disabled; record exact green commands and all pending live integration prerequisites. The CI workflow provisions owned Postgres/Redis service fixtures, sets required URLs, verifies executed test counts, and serializes the full-suite race lane.]  blocked-by: [T1.18]  lane: agent
+- [ ] T1.19 Install scoped quality gates and record foundation handoff  Owner: coordinator  Est: 60m  kind: agent stage: author delivery-gate: T1.19.R  verifies: [infrastructure, UC-008]  deps: [T1.18.R]  acc: [CI runs gofmt/goimports, go vet, golangci-lint and unit/API/integration/system tests with real service fixtures and no silent integration skips; unsupported paid-execution capability stays disabled; record exact green commands and all pending live integration prerequisites. The CI workflow provisions owned Postgres/Redis service fixtures, sets required URLs, verifies executed test counts, and serializes the full-suite race lane.]  blocked-by: [T1.18.R]  lane: agent
   - Scope/contract: [docs/tasks/T1.19.md](tasks/T1.19.md); exact owned files and verification commands are listed there.
+- [ ] T1.19.R Independently review and deliver T1.19 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T1.19] acc: [exact-head independent acceptance, guarded merge and actual landing verified]
   - S1.19.1 Verify: Make a required integration fixture absent and assert CI fails rather than passes/skips. Run the scoped tests, then formatter/linter checks after code changes.
 
 ### E2 - Review-only B with verified runtime and metering
@@ -157,12 +162,38 @@ Acceptance: Deploy to production and observe health, signed deliveries, recovery
 
 E6 integrates the complete lifecycle adapter with generic plan/apply/claim workflows while preserving standalone APRL operation. It does not assert live readiness. E6 implementation depends on E1 foundation handoff and the frozen external protocol. The exact wire schema is frozen in [code-delivery/v1](contracts/code-delivery-v1.md); do not implement guessed fields.
 
-- [ ] T6.0 PLAN: map frozen whole-lifecycle integration contract to service adapter  Owner: coordinator  Est: 60m  kind: plan  delivers: [versioned protocol, compatibility policy, lifecycle/readiness mapping, standalone and delegated acceptance]  deps: [T1.19]  acc: [Architecture-frozen schema and service-specific authoritative admission/result adapter are documented; no second scheduler is introduced; standalone flow remains complete]  blocked-by: [T1.19]  blocked: E1 handoff and authoritative adapter mapping remain pending; wire schema is frozen
+- [ ] T6.0 PLAN: map frozen whole-lifecycle integration contract to service adapter  Owner: coordinator  Est: 60m  kind: plan  delivers: [versioned protocol, compatibility policy, lifecycle/readiness mapping, standalone and delegated acceptance]  deps: [T1.19.R]  acc: [Architecture-frozen schema and service-specific authoritative admission/result adapter are documented; no second scheduler is introduced; standalone flow remains complete]  blocked-by: [T1.19.R]  blocked: E1 handoff and authoritative adapter mapping remain pending; wire schema is frozen
 - [ ] T6.1 Implement the lifecycle protocol adapter  Owner: coordinator  Est: 90m  kind: agent  verifies: [UC-001, UC-002, UC-003, UC-004, UC-008]  deps: [T6.0]  acc: [Approved lifecycle intent maps to APRL canonical child IDs/state/readiness; result and admission facts are authenticated, idempotent, fenced and reconciled; protocol version compatibility is explicit]  blocked-by: [T6.0]
 - [ ] T6.2 Route standalone and delegated lifecycles through one scheduler  Owner: coordinator  Est: 90m  kind: agent  verifies: [UC-001, UC-002, UC-003, UC-004]  deps: [T6.1]  acc: [Standalone author/review/fix/re-review/merge remains executable; delegated mode uses the same APRL scheduler; review is ordinary apply+claim work; blocking findings expand bounded fix/re-review children; reviewer verifies exact head/base, merges and verifies landing]  blocked-by: [T6.1]
 - [ ] T6.3 Integrate generic task tooling with lifecycle admission  Owner: shared-tooling maintainer + coordinator  Est: 90m  kind: agent  verifies: [infrastructure]  deps: [T6.1]  acc: [Generic plan/apply/claim task representation, readiness and stage routing remain reusable; ordinary descendants wait for verified landing; explicit speculative dependencies are recorded and confer no release authority; service adapter remains authoritative; no review exemption exists]  blocked-by: [T6.1]
 - [ ] T6.4 Independently review lifecycle integration changes  Owner: independent reviewer  Est: 60m  kind: agent  verifies: [infrastructure]  stage: review  deps: [T6.2, T6.3]  acc: [Review task is executable by normal apply+claim; records PR URL and exact head; reviewer is independent; blocker findings create bounded fix/re-review tasks; approval covers exact head/base; merge and verified landing are recorded]  blocked-by: [T6.2, T6.3]
 Trigger: Dependency planning-task completion alone never permits downstream coding; require the prior epic's implementation acceptance, substitute its resulting milestone task IDs, then groom this epic. E5 may start with review-only production while E3/E4 remain disabled.
+
+
+### E7 - First-class review task foundation
+
+- [x] T7.1 Specify first-class plan review contracts and policy  Owner: design  kind: agent stage: implement lane: agent  acc: [neutral ADR and runbook define PR handoff, actor independence, bounded correction and stable delivery gates]
+- [x] T7.2 Implement versioned plan task and receipt validation  Owner: contracts  kind: agent stage: implement lane: agent  acc: [invalid PR snapshots, negative review outcomes and invalid correction envelopes reject]
+- [x] T7.3 Implement deterministic lifecycle progression and eligibility  Owner: coordinator  kind: agent stage: implement lane: agent  blocked-by: [T7.2]  acc: [author handoff releases review; self-review and stale approval reject; fixes and re-reviews remain explicit; only verified landing releases ordinary descendants]
+- [x] T7.4 Add durable admission and shared apply adapter  Owner: coordinator  kind: agent stage: implement lane: agent  blocked-by: [T7.3]  acc: [duplicate claims cannot duplicate admission; fenced receipts atomically update visible successor tasks and survive restart]
+- [x] T7.5 Integrate shared parser and stage routing  Owner: shared-tooling  kind: agent stage: implement lane: agent  blocked-by: [T7.4]  acc: [ordinary apply loops claim review/fix/re-review tasks with current PR and admission; coding checkbox alone cannot authorize mutation]
+- [x] T7.6 Verify revision and create PR handoff  Owner: coordinator  kind: agent stage: verify lane: agent  blocked-by: [T7.1, T7.5]  acc: [targeted tests and required checks pass; PR URL and exact head recorded on T7.7]
+- [x] T7.7 Independently review and deliver review-task revision  Owner: independent-reviewer  kind: agent stage: review lane: agent  blocked-by: [T7.6]  pr-url: https://github.com/ajent-social/APRL/pull/3  acc: [independent current-head review accepted; guarded PR merge confirmed; landed revision verified]
+- [x] T7.8 Preserve review and correction identifiers in generic plan parsing  Owner: shared-tooling kind: agent stage: author delivery-gate: T7.8.R lane: agent blocked-by: [T7.7] acc: [R/F suffixed review/fix task IDs parse as ordinary tasks with exact dependencies; scheduling references do not duplicate executable rows; focused Python regressions and author PR handoff]
+- [x] T7.8.R Independently review and land parser compatibility correction  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/dndungu/skills/pull/129 head-sha: 61d8150dd3d2fe4e35ed06c120b201893c322745 base-sha: 04469547804f99a1292fd937bb7be70be9fd4796 blocked-by: [T7.8] acc: [independent exact-head review, guarded merge and actual tree/ancestry verification in private shared tooling repository]
+
+### E8 - Durable process ownership integration
+
+- [x] T8.1 Implement durable process reservations and admission gates  Owner: process-holds  kind: agent stage: author delivery-gate: T8.1.R lane: agent  acc: [immutable run-bound reservations, finite trusted scope capacity, cancellation-safe unresolved states, trusted bounded reaping evidence; real PostgreSQL regressions]
+- [x] T8.1.R Record initial independent process hold review  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T8.1] pr-url: https://github.com/ajent-social/APRL/pull/5 acc: [exact-head initial verdict recorded; changes requested, no merge or successful delivery]
+- [x] T8.1.F1 Correct direct process identity publication bypass  Owner: process-holds kind: agent stage: fix delivery-gate: T8.1.R lane: agent blocked-by: [T8.1.R] pr-url: https://github.com/ajent-social/APRL/pull/5 acc: [Started and SQL reject RESERVED bypass; legitimate fixtures consume BeginStart; required checks and corrective PR handoff]
+- [x] T8.1.R2 Independently re-review and deliver process hold primitives  Owner: independent-reviewer kind: agent stage: rereview delivery-gate: T8.1.R lane: agent blocked-by: [T8.1.F1] pr-url: https://github.com/ajent-social/APRL/pull/5 acc: [corrective exact-head review accepted, guarded merge and actual landing verified]
+- [ ] T8.2 Verify startup recovery process reservation integration  Owner: coordinator kind: agent stage: verify lane: agent blocked-by: [T8.1.R2, T1.15.R]  acc: [unresolved reservations block replacement across generations; startup reconciles before sweep or dispatch; ambiguous ownership remains held]
+- [ ] T8.3 Verify supervisor process ownership integration  Owner: coordinator kind: agent stage: verify lane: agent blocked-by: [T8.1.R2, T1.16.R]  acc: [reservation before launch, exact trusted ownership identity, bounded shutdown, unknown retains capacity, only proven reaped releases]
+- [ ] T8.4 Verify corrected foundation and publish PR  Owner: coordinator  kind: agent stage: verify lane: agent blocked-by: [T8.2, T8.3]  acc: [real database/process boundary regressions, required checks and PR handoff]
+- [ ] T8.5 Independently review and land process reservation correction  Owner: independent-reviewer  kind: agent stage: review lane: agent blocked-by: [T8.4]  acc: [exact PR head accepted, guarded merge and actual landed verification]
+- [ ] T8.6 Route outbox work by owner and bind cancellation to exact runs  Owner: control-routing kind: agent stage: author delivery-gate: T8.6.R lane: agent blocked-by: [T1.9, T1.11, T8.1.R2] acc: [dispatcher never consumes LABEL_SYNC; router/control cancel intents capture original task/job/run before revocation; no task-only or persisted-PID cancellation; real PostgreSQL regression and corrective handoff]
+- [ ] T8.6.R Independently review and deliver outbox ownership correction  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T8.6] acc: [exact-head independent acceptance, guarded merge and verified actual landing]
 
 ## 5. Parallel Work and Waves
 
@@ -205,8 +236,8 @@ T1.9, T1.10, T1.12.
 - [x] T1.14 Scheduling reference; acceptance and scope are in the WBS.
 T1.11, T1.14.
 #### Wave 8: Broker and fixture supervisor (2 workers)
-- [ ] T1.13 Scheduling reference; acceptance and scope are in the WBS.
-- [ ] T1.16 Scheduling reference; acceptance and scope are in the WBS.
+- [x] T1.13 Scheduling reference; acceptance and scope are in the WBS.
+- [x] T1.16 Scheduling reference; acceptance and scope are in the WBS.
 T1.13, T1.16.
 #### Wave 9: Recovery (1 worker)
 - [ ] T1.15 Scheduling reference; acceptance and scope are in the WBS.
@@ -231,6 +262,51 @@ T2.0. Later planning waves are scheduled after the previous epic's actual exit, 
 #### Wave 16: Deferred production planning (1 coordinator)
 - [ ] T5.0 Scheduling reference; may be groomed after E2 evidence and target selection, before E3/E4 if review-only deployment is desired.
 These deferred planning waves are triggers, not a fixed calendar. Expansion inserts the actual implementation tasks and revises downstream scheduling.
+
+#### Wave 17: First-class review foundation and parser handoff
+
+- [x] T7.1 Scheduling reference; acceptance and scope are in the WBS.
+- [x] T7.2 Scheduling reference; acceptance and scope are in the WBS.
+- [x] T7.3 Scheduling reference; acceptance and scope are in the WBS.
+- [x] T7.4 Scheduling reference; acceptance and scope are in the WBS.
+- [x] T7.5 Scheduling reference; acceptance and scope are in the WBS.
+- [x] T7.6 Scheduling reference; acceptance and scope are in the WBS.
+- [x] T7.7 Scheduling reference; acceptance and scope are in the WBS.
+- [x] T7.8 Scheduling reference; acceptance and scope are in the WBS.
+- [x] T7.8.R Scheduling reference; acceptance and scope are in the WBS.
+
+#### Wave 18: Durable process ownership correction
+
+- [x] T8.1 Scheduling reference; acceptance and scope are in the WBS.
+- [x] T8.1.R Scheduling reference; acceptance and scope are in the WBS.
+- [x] T8.1.F1 Scheduling reference; acceptance and scope are in the WBS.
+- [x] T8.1.R2 Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T8.2 Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T8.3 Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T8.4 Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T8.5 Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T8.6 Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T8.6.R Scheduling reference; acceptance and scope are in the WBS.
+
+#### Wave 19: Independent E1 delivery gates
+
+- [x] T1.13.R Scheduling reference; acceptance and scope are in the WBS.
+- [x] T1.13.F1 Scheduling reference; acceptance and scope are in the WBS.
+- [x] T1.13.F1.R Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T1.15.R Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T1.16.R Scheduling reference; acceptance and scope are in the WBS.
+
+- [ ] T1.17.R Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T1.18.R Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T1.19.R Scheduling reference; acceptance and scope are in the WBS.
+
+#### Wave 20: Caller protocol integration after E1 delivery
+
+- [ ] T6.0 Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T6.1 Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T6.2 Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T6.3 Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T6.4 Scheduling reference; acceptance and scope are in the WBS.
 
 ## 6. Timeline and Milestones
 
@@ -323,13 +399,6 @@ The [code-delivery/v1 wire contract](contracts/code-delivery-v1.md) and canonica
 
 Owner-authorized scope: revise design, plan and code for PR-first executable review tasks. Latest accepted policy requires independent review for every code-changing PR; ordinary downstream work waits for verified landing. Public contracts remain caller/provider neutral. Existing E1 acceptance and unfinished source are preserved.
 
-- [x] T7.1 Specify first-class plan review contracts and policy  Owner: design  kind: agent stage: implement lane: agent  acc: [neutral ADR and runbook define PR handoff, actor independence, bounded correction and stable delivery gates]
-- [x] T7.2 Implement versioned plan task and receipt validation  Owner: contracts  kind: agent stage: implement lane: agent  acc: [invalid PR snapshots, negative review outcomes and invalid correction envelopes reject]
-- [x] T7.3 Implement deterministic lifecycle progression and eligibility  Owner: coordinator  kind: agent stage: implement lane: agent  blocked-by: [T7.2]  acc: [author handoff releases review; self-review and stale approval reject; fixes and re-reviews remain explicit; only verified landing releases ordinary descendants]
-- [x] T7.4 Add durable admission and shared apply adapter  Owner: coordinator  kind: agent stage: implement lane: agent  blocked-by: [T7.3]  acc: [duplicate claims cannot duplicate admission; fenced receipts atomically update visible successor tasks and survive restart]
-- [x] T7.5 Integrate shared parser and stage routing  Owner: shared-tooling  kind: agent stage: implement lane: agent  blocked-by: [T7.4]  acc: [ordinary apply loops claim review/fix/re-review tasks with current PR and admission; coding checkbox alone cannot authorize mutation]
-- [x] T7.6 Verify revision and create PR handoff  Owner: coordinator  kind: agent stage: verify lane: agent  blocked-by: [T7.1, T7.5]  acc: [targeted tests and required checks pass; PR URL and exact head recorded on T7.7]
-- [x] T7.7 Independently review and deliver review-task revision  Owner: independent-reviewer  kind: agent stage: review lane: agent  blocked-by: [T7.6]  pr-url: https://github.com/ajent-social/APRL/pull/3  acc: [independent current-head review accepted; guarded PR merge confirmed; landed revision verified]
 
 Revision waves: design and contracts plus read-only compatibility discovery in parallel; coordinator progression then durable adapter; shared-tooling integration after contract agreement; verification/PR handoff; independent review and delivery. No paid runtime or production activation follows from this revision.
 
@@ -343,14 +412,6 @@ T7 delivery receipt: PR3 independently reviewed at exact head 9759d834dd4312f00c
 
 This necessary bounded foundation correction preserves the original E1 acceptance gates. Execution authority and resource ownership are separate: cancellation revokes execution immediately, while unresolved owned processes retain capacity until trusted host proof.
 
-- [x] T8.1 Implement durable process reservations and admission gates  Owner: process-holds  kind: agent stage: author delivery-gate: T8.1.R lane: agent  acc: [immutable run-bound reservations, finite trusted scope capacity, cancellation-safe unresolved states, trusted bounded reaping evidence; real PostgreSQL regressions]
-- [x] T8.1.R Record initial independent process hold review  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T8.1] pr-url: https://github.com/ajent-social/APRL/pull/5 acc: [exact-head initial verdict recorded; changes requested, no merge or successful delivery]
-- [x] T8.1.F1 Correct direct process identity publication bypass  Owner: process-holds kind: agent stage: fix delivery-gate: T8.1.R lane: agent blocked-by: [T8.1.R] pr-url: https://github.com/ajent-social/APRL/pull/5 acc: [Started and SQL reject RESERVED bypass; legitimate fixtures consume BeginStart; required checks and corrective PR handoff]
-- [x] T8.1.R2 Independently re-review and deliver process hold primitives  Owner: independent-reviewer kind: agent stage: rereview delivery-gate: T8.1.R lane: agent blocked-by: [T8.1.F1] pr-url: https://github.com/ajent-social/APRL/pull/5 acc: [corrective exact-head review accepted, guarded merge and actual landing verified]
-- [ ] T8.2 Integrate startup recovery with process reservations  Owner: coordinator  kind: agent stage: implement lane: agent blocked-by: [T8.1.R2]  acc: [unresolved reservations block replacement across generations; startup reconciles before sweep or dispatch; ambiguous ownership remains held]
-- [ ] T8.3 Integrate supervisor process ownership  Owner: supervisor  kind: agent stage: implement lane: agent blocked-by: [T8.1.R2]  acc: [reservation before launch, exact trusted ownership identity, bounded shutdown, unknown retains capacity, only proven reaped releases]
-- [ ] T8.4 Verify corrected foundation and publish PR  Owner: coordinator  kind: agent stage: verify lane: agent blocked-by: [T8.2, T8.3]  acc: [real database/process boundary regressions, required checks and PR handoff]
-- [ ] T8.5 Independently review and land process reservation correction  Owner: independent-reviewer  kind: agent stage: review lane: agent blocked-by: [T8.4]  acc: [exact PR head accepted, guarded merge and actual landed verification]
 
 Broker delivery receipt: PR4 independently reviewed at exact head 69535b5ee7cd3c7d08de64a6722956ce4d867557 and normally rebase merged to75c7a058a04b0e67767b33f5c0cc9f1143848ad5. Actual landed tree a3220fa0508276cea03c548064e0de7c93b172fd equals reviewed candidate tree. T1.13.R claim released; independent agent acceptance recorded as COMMENT with shared author login. No hosted CI or live transport activation claim.
 
@@ -365,3 +426,17 @@ T8.1.R2 verified delivery receipt: independent exact-head review5401219806 accep
 Broker corrective author qualification: sourcee0d1072 executed 27 targeted race test events, zero skips/failures, affected vet and lint. Mismatched or absent reviewed-source head cannot confirm an Execute or Applied Lookup; durable UNKNOWN and one mutation attempt remain. Removing only the merge source-head guard genuinely failed the mismatch regression; exact source restoration passes. T1.13.F1.R must independently deliver the corrective PR before T1.15 delivery. No real remote transport activation.
 
 Broker correction author handoff: PR6 contains the qualified two-file source and review-gated plan. T1.13.F1 is complete as a coding handoff only; T1.13.F1.R must record exact head/base, independently accept, merge and verify actual landing before T1.15 delivery.
+
+
+T8.6 bounded scope: internal/dispatch/dispatch.go, internal/control/control.go, internal/router/router.go and corresponding integration dispatch/controls/router tests. Coordinator owns ADR/plan and integration. Reconciliation owns LABEL_SYNC external I/O and subsequent task/outbox acknowledgement; dispatch never locks a label row around its callback. Cancellation conveys the captured immutable run, not a later replacement, and grants no authority to signal numeric persisted PIDs. Missing authenticated cross-process cancellation transport remains unavailable until assembly supplies it. T1.17 delivery additionally waits T8.6.R.
+
+
+T7.8 scope: shared generic plan/scripts/parse_plan.py and its focused tests; coordinator owns this APRL plan and keeps historical scheduling references outside the canonical WBS while preserving their text. No runtime provider/profile activation or second scheduler. Canonical task identifiers and historical claim receipts remain unchanged.
+
+Broker correction delivery: independent review5401300273 accepted PR6 head1725b26ab2b212b9bd861712b6f755095040374a and guarded rebase landed5a74dd138c1f838a840a2cbeb214c4c8cb8ecc29. Actual main ancestry and complete tree9e89229df01a2076ab018b4c7c417ad9b7260e08 equal the reviewed candidate. No hosted check or runtime activation claim.
+
+T7.8 author handoff: private shared tooling PR129 preserves ordinary review/fix task IDs; tested sourcef1368bc published as61d8150dd3d2fe4e35ed06c120b201893c322745/tree38181744b498b1364eb7b8908550ac7f0372821a.18 focused and2 compatibility Python tests, footprint ratchet and genuine-red parser regression passed. Actual APRL plan now has55 unique canonical tasks,77 valid acyclic dependency edges and55 wave assignments. First-class review definitions are inside the canonical WBS; historical scheduling references remain outside it. T7.8.R must independently deliver the private PR; no installed profile/provider/runtime activation.
+
+T7.8.R actual delivery: private shared skills PR129 independently accepted exact head61d8150dd3d2fe4e35ed06c120b201893c322745 and guarded rebase landed2674b6d442874e07b4ea98c370ac14cc24a46fa4. Actual private main ancestry and full tree38181744b498b1364eb7b8908550ac7f0372821a match the reviewed source. Reviewer reran18 focused and2 compatibility Python tests. No hosted checks, installed provider profile or runtime activation claimed.
+
+Supervisor T1.16 author qualification: full-module source6fb1a7c passed build,270 regular and270 race test events with no skipped tests, vet and lint. Production Go bytes are unchanged by later test-only timeout assertione4a075e; that assertion passed the exact restored targeted native test. Disabling only primary KILL genuinely failed the TERM-ignoring reap-bound test while owned reassert KILL remained for cleanup; exact restoration passed. Native boot/start identity, ambiguous leader retention, stale HTTP result rejection, heartbeat and trusted never-started retry/settlement are exercised. Author checkbox does not establish delivery; T1.16.R must independently accept current PR head and verify actual landing. No OCI containment/restart handle/provider or runtime activation.
