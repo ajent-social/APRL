@@ -141,6 +141,64 @@ func TestDeliveryV1DecodeRequestMalformedDocuments(t *testing.T) {
 	}
 }
 
+func TestDeliveryV1DecodeStrictUnicodeEscapes(t *testing.T) {
+	fixture := string(deliveryV1RequestFixture(t))
+	oldAcceptance := `"acceptance":["Demonstrate the requested behavior and denial case."]`
+	replaceAcceptance := func(value string) []byte {
+		updated := strings.Replace(fixture, oldAcceptance, `"acceptance":["`+value+`"]`, 1)
+		if updated == fixture {
+			t.Fatal("test setup could not replace acceptance string")
+		}
+		return []byte(updated)
+	}
+	for _, tc := range []struct {
+		name  string
+		value string
+	}{
+		{"unpaired high surrogate", `\uD800`},
+		{"unpaired low surrogate", `\uDC00`},
+		{"high surrogate followed by ordinary unicode", `\uD800\u0041`},
+		{"high surrogate followed by plain text", `\uD800x`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := DecodeDeliveryV1Request(replaceAcceptance(tc.value)); !errors.Is(err, ErrDeliveryV1Malformed) {
+				t.Fatalf("error = %v, want ErrDeliveryV1Malformed", err)
+			}
+		})
+	}
+
+	validPair, err := DecodeDeliveryV1Request(replaceAcceptance(`emoji \uD83D\uDE00`))
+	if err != nil {
+		t.Fatalf("valid surrogate pair rejected: %v", err)
+	}
+	if got, want := validPair.Spec.Acceptance[0], "emoji 😀"; got != want {
+		t.Fatalf("valid surrogate pair decoded as %q, want %q", got, want)
+	}
+	canonical, err := EncodeDeliveryV1Request(validPair)
+	if err != nil {
+		t.Fatalf("encode valid surrogate pair: %v", err)
+	}
+	if !bytes.Contains(canonical, []byte("emoji 😀")) {
+		t.Fatalf("canonical output lost valid Unicode scalar: %s", canonical)
+	}
+
+	literalReplacement, err := DecodeDeliveryV1Request(replaceAcceptance("replacement �"))
+	if err != nil {
+		t.Fatalf("valid literal U+FFFD rejected: %v", err)
+	}
+	if got, want := literalReplacement.Spec.Acceptance[0], "replacement �"; got != want {
+		t.Fatalf("literal U+FFFD decoded as %q, want %q", got, want)
+	}
+
+	escapedBackslash, err := DecodeDeliveryV1Request(replaceAcceptance(`literal \\uD800`))
+	if err != nil {
+		t.Fatalf("escaped backslash followed by surrogate-like text rejected: %v", err)
+	}
+	if got, want := escapedBackslash.Spec.Acceptance[0], `literal \uD800`; got != want {
+		t.Fatalf("escaped backslash decoded as %q, want %q", got, want)
+	}
+}
+
 func TestDeliveryV1RequestSemanticValidation(t *testing.T) {
 	cases := []struct {
 		name   string
