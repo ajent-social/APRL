@@ -311,3 +311,7 @@ The user requested merging completed work while E1 implementation continues. The
 - T1.14 results locally accepted after recovery: 17 race events, zero skips; three packages vet/lint, formatting and observer pass. Reviewer-controlled suppression of reply materialization failed the actual webhook/result race; exact restoration passes. Original snapshot includes integration identity and new pushed snapshot clears it. Old-generation cancelled job is not reauthorized by result receipt.
 
 - Historical completed-slice verification/review 2026 10 02: candidate b4255df had 136 regular and 136 race pass events, zero skips, build, vet, lint and formatting passing. Independent reviewers resolved one admission-retry blocker with a genuine-red emergency regression and verified all four retry/error cases. The then-active broker/supervisor work and rebase-merge wording are historical; PR1 is now present on current main, while E1 remains incomplete.
+
+## Versioned whole-lifecycle protocol adoption
+
+The [code-delivery/v1 wire contract](contracts/code-delivery-v1.md) and canonical request/digest fixtures freeze the neutral caller-facing protocol. Implementation and interoperability remain future work: E6 must prove subscription-only admission, first-class executable apply+claim children, independent review, bounded explicit corrections, and authenticated verified-landing receipts before a caller claims adoption. Schema freeze does not complete E1 or qualify remote execution.
