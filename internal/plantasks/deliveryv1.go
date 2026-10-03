@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	// DeliveryV1ProtocolVersion identifies the caller-facing wire contract.
 	DeliveryV1ProtocolVersion = "code-delivery/v1"
 	DeliveryV1MaxJSONBytes    = 1 << 20
 
@@ -31,6 +32,7 @@ const (
 )
 
 var (
+	// ErrDeliveryV1Malformed reports invalid JSON structure or encoding.
 	ErrDeliveryV1Malformed = errors.New("malformed code-delivery/v1 document")
 	ErrDeliveryV1Oversize  = errors.New("code-delivery/v1 document exceeds size limit")
 	ErrDeliveryV1Invalid   = errors.New("invalid code-delivery/v1 value")
@@ -846,9 +848,10 @@ func deliveryV1ValidURLSegment(segment string) bool {
 		return false
 	}
 	for _, character := range segment {
-		if !(character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || character >= '0' && character <= '9' || strings.ContainsRune("-_.", character)) {
-			return false
+		if character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || character >= '0' && character <= '9' || strings.ContainsRune("-_", character) {
+			continue
 		}
+		return false
 	}
 	return true
 }
