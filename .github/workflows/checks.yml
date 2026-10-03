@@ -113,7 +113,7 @@ jobs:
             fi
 
             local total passed failed skipped
-            read -r total passed failed skipped < <(python3 - "$event_file" "$package_file" <<'PYTESTJSON'
+            if ! read -r total passed failed skipped < <(python3 - "$event_file" "$package_file" <<'PYTESTJSON'
           import json
           import sys
 
@@ -142,7 +142,10 @@ jobs:
           total = sum(counts.values())
           print(total, counts["pass"], counts["fail"], counts["skip"])
           PYTESTJSON
-            )
+            ); then
+              printf '%s event accounting failed\n' "$lane"
+              return 1
+            fi
             printf '%s terminal test events: total=%s pass=%s fail=%s skip=%s\n' "$lane" "$total" "$passed" "$failed" "$skipped"
 
             if [[ "$total" -le 0 || "$failed" -ne 0 || "$skipped" -ne 0 ]]; then
