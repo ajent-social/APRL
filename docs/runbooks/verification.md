@@ -1,6 +1,6 @@
 # Foundation verification
 
-T1.18.R landed at0728071 with independently reviewed tree69ad59c9a10abd2c283202b350fe76eba68fbdda. T1.19 installs hosted quality gates; hosted execution remains pending until a recorded green run.
+T1.18.R landed at0728071 with independently reviewed tree69ad59c9a10abd2c283202b350fe76eba68fbdda. T1.19 installs hosted quality gates; hosted execution is qualified only for the exact green source recorded below.
 
 Run one quality job using Go1.27.1, PostgreSQL16, Redis7 and a nonempty unique TEST_RESOURCE_OWNER. Required integration fixtures fail when connectivity is absent. They create isolated database schemas/Redis prefixes and remove only owned fixture data. The workflow never configures production workers, credentials, providers or factory registries.
 
@@ -15,3 +15,5 @@ Record exact reviewed source, hosted run URL/head, event totals, commands and re
 Local T1.19 preflight: removing `TEST_DATABASE_URL` executed `TestFoundationFaultsDuplicateAndStaleHTTPResults` and failed with a required-fixture setup error, with no skipped event. Restoring the exact owned fixture environment passed that named case. The initial formatter inventory omitted migrations; after independent review, tracked-source enumeration passed gofmt/goimports on all74tracked Go files, including migrations. The unchanged landed Go source already passed315normal/315race terminal events, zero skips, build/vet/lint; hosted Ubuntu results must be recorded separately before claiming Linux qualification.
 
 Hosted preparation also pins the official Codex CLI0.160.0 release archive and its SHA256 digest for the local capability probe. The probe invokes only `--version` and `exec --help`; it does not authenticate, launch an agent or request provider execution. Linux initially revealed builtin-shadowing local identifiers, then a missing CLI prerequisite; preserve those failed runs separately from any subsequent green qualification.
+
+Hosted Linux qualification: [run37152786186](https://github.com/ajent-social/APRL/actions/runs/37152786186), exact functional head`b363f02f290f90cf3b48f8451642b6218f9c9fa2`, passed315regular and315race terminal test events with zero failures/skips. PostgreSQL16/Redis7, all tracked-Go formatting, vet and lint passed. The native Linux identity/TERM/KILL/reap fixture tests ran. This qualifies local hosted fixtures only; production host inventory, OCI isolation, provider accounting settlement and factory/profile activation remain pending. The final documentation head also requires a green check before review delivery.
