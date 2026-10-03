@@ -237,8 +237,6 @@ func (s *Store) Started(ctx context.Context, runID string, process ProcessIdenti
 	}
 	return s.mutate(ctx, runID, func(h Hold) (Hold, bool, error) {
 		switch h.State {
-		case StateReserved:
-			h.State, h.Process = StateStarted, copyProcess(&process)
 		case StateStarted:
 			if !sameProcess(h.Process, &process) {
 				return Hold{}, false, ErrConflict
@@ -290,10 +288,13 @@ func (s *Store) Unknown(ctx context.Context, runID, reason string) (Hold, error)
 		case StateReserved, StateStarted:
 			h.State, h.UnknownReason = StateUnknown, reason
 		case StateUnknown:
-			if h.UnknownReason != reason {
-				return Hold{}, false, ErrConflict
+			if h.UnknownReason == reason {
+				return h, false, nil
 			}
-			return h, false, nil
+			// A new trusted supervisor observation can refine why execution
+			// remains uncertain. It changes only the audit reason; UNKNOWN
+			// continues to consume capacity and never authorizes execution.
+			h.UnknownReason = reason
 		default:
 			return Hold{}, false, ErrConflict
 		}

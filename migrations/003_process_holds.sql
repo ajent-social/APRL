@@ -85,7 +85,7 @@ BEGIN
     END IF;
     IF OLD.state = 'REAPED' THEN
         RAISE EXCEPTION 'reaped process holds are immutable';
-    ELSIF OLD.state = 'RESERVED' AND NEW.state NOT IN ('STARTED','UNKNOWN','REAPED') THEN
+    ELSIF OLD.state = 'RESERVED' AND NEW.state NOT IN ('UNKNOWN','REAPED') THEN
         RAISE EXCEPTION 'invalid reserved process hold transition';
     ELSIF OLD.state = 'STARTED' AND NEW.state NOT IN ('UNKNOWN','REAPED') THEN
         RAISE EXCEPTION 'invalid started process hold transition';
@@ -93,8 +93,8 @@ BEGIN
         RAISE EXCEPTION 'invalid unknown process hold transition';
     END IF;
     IF OLD.state = 'UNKNOWN' AND NEW.state = 'UNKNOWN'
-       AND (NEW.unknown_reason IS DISTINCT FROM OLD.unknown_reason OR OLD.process_id IS NOT NULL OR NEW.process_id IS NULL) THEN
-        RAISE EXCEPTION 'unknown process hold may only fill a missing process identity';
+       AND OLD.process_id IS NOT NULL AND NEW.process_id IS NULL THEN
+        RAISE EXCEPTION 'unknown process hold may not clear a recorded process identity';
     END IF;
     RETURN NEW;
 END;
