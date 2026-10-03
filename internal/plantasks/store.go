@@ -153,6 +153,18 @@ func (s *Store) Update(ctx context.Context, lifecycleID string, expectedRevision
 	if err != nil {
 		return fmt.Errorf("lock lifecycle %s: %w", lifecycleID, err)
 	}
+	if binding == nil {
+		// A delegated creation may have committed between the first binding
+		// lookup and this lifecycle read. Never acquire its binding out of
+		// order; abort so the caller retries with binding-first locks.
+		var delegated bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM plan_delegations WHERE lifecycle_id=$1::uuid)`, lifecycleID).Scan(&delegated); err != nil {
+			return fmt.Errorf("recheck standalone lifecycle binding: %w", err)
+		}
+		if delegated {
+			return fmt.Errorf("delegation committed during lifecycle lookup: %w", ErrConflict)
+		}
+	}
 	if revision != expectedRevision {
 		return fmt.Errorf("expected revision %d, found %d: %w", expectedRevision, revision, ErrConflict)
 	}
