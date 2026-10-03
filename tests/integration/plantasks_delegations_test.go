@@ -1078,8 +1078,8 @@ func TestPlanDelegationRechecksExactExpiryAfterLocalAuthorizationVerification(t 
 	if binding.Status != plantasks.DelegationDenied || binding.LifecycleID != "" || binding.State != nil || binding.Authorization.Allowed {
 		t.Fatalf("decision was admitted from pre-verification time sample: %+v", binding)
 	}
-	if !manual.Now().After(request.Spec.Envelope.ExpiresAt) || factory.calls.Load() != 0 {
-		t.Fatalf("expiry was not rechecked before factory: now=%s expiry=%s factoryCalls=%d", manual.Now().Format(time.RFC3339Nano), request.Spec.Envelope.ExpiresAt.Format(time.RFC3339Nano), factory.calls.Load())
+	if !manual.Now().After(request.Spec.Envelope.ExpiresAt) || policy.verifyCount() != 1 {
+		t.Fatalf("expiry was not rechecked after local verification: now=%s expiry=%s verifyCalls=%d", manual.Now().Format(time.RFC3339Nano), request.Spec.Envelope.ExpiresAt.Format(time.RFC3339Nano), policy.verifyCount())
 	}
 	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
 	if intentCount != 1 || lifecycleCount != 0 || receiptCount != 0 {
