@@ -14,19 +14,19 @@ Updated: 2026-10-03
 ## In progress
 
 - E1 durable control-plane foundation remains incomplete. T1.13 (broker), T1.15 (recovery), T1.16 (supervisor), T1.17 (service roles), T1.18 (end-to-end foundation evidence), and T1.19 (quality gates/handoff) remain pending in [the plan](plan.md). No E1-complete claim is made.
-- Whole standalone/delegated lifecycle integration semantics are accepted in [ADR 007](adr/007-whole-code-change-lifecycle.md) and [the lifecycle contract](contracts.md#whole-code-change-lifecycle-integration). External protocol schema/version is pending architecture freeze; no adapter readiness is claimed.
+- Whole standalone/delegated lifecycle integration semantics are accepted in [ADR 007](adr/007-whole-code-change-lifecycle.md) and [the lifecycle contract](contracts.md#whole-code-change-lifecycle-integration). The [code-delivery/v1 schema](contracts/code-delivery-v1.md) is frozen; no adapter readiness is claimed.
 
 ## Planned
 
 - E2 review-only runtime and metering/isolation proof remains gated on E1 and real supported adapter evidence.
 - E3 bounded remediation, E4 authoring/guarded merge, and E5 operations/rollout remain future scope with the dependencies and acceptance gates in [the plan](plan.md).
-- E6 protocol adoption and generic task-tooling integration is tracked in the plan. Its executable implementation waits on E1 handoff and exact protocol freeze. Every code-changing PR must use an independent executable review task, guarded merge, and verified landing.
+- E6 protocol adoption and generic task-tooling integration is tracked in the plan. Its executable implementation waits on E1 handoff and reviewed implementation mapping to the frozen code-delivery/v1 protocol. Every code-changing PR must use an independent executable review task, guarded merge, and verified landing.
 
 ## Blocked or not yet qualified
 
 - Live paid execution remains disabled pending proven isolation, finite billing admission, and supported runtime adapters.
 - Autonomous GitHub mutation remains unavailable until broker policy, recovery, supervision, and runtime admission are implemented and qualified.
 - Production rollout needs a qualified runtime plus an operator-selected target and production evidence.
-- Exact delegated protocol wire schema/version is pending its architecture lane.
+- The delegated code-delivery/v1 wire schema/version is frozen; service adapter and interoperability qualification remain pending.
 
 [Implementation plan](plan.md)
