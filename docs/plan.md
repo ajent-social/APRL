@@ -135,7 +135,7 @@ Acceptance: T1.1-T1.19 pass on owned test services; a signed event completes thr
 fidelity: outline
 Build the real OCI supervisor, external metered gateway and credential broker adapter, trusted checkout/config, review output validation, thread/finding persistence, and GitHub review posting. Prove provider request bounds before admitting paid execution.
 Acceptance: A live sandbox review preserves unanchored blockers; no fixer/merge is enabled; credentials/egress/cancellation and billing envelopes are proven for pinned runtime versions.
-- [ ] T2.0 PLAN: expand E2 after its trigger evidence  Owner: coordinator  Est: 60m  kind: plan  delivers: [E2 executable tasks, contracts, and updated use cases]  deps: [T1.19]  acc: [E2 is executable with resolved dependencies, owned file scopes and falsifiable acceptance for every row]  blocked-by: [T1.19]  blocked: Prior epic implementation exit evidence is not yet available; coordinator-only planning
+- [ ] T2.0 PLAN: expand E2 after its trigger evidence  Owner: coordinator  Est: 60m  kind: plan  delivers: [E2 executable tasks, contracts, and updated use cases]  deps: [T1.19.R]  acc: [E2 is executable with resolved dependencies, owned file scopes and falsifiable acceptance for every row]  blocked-by: [T1.19.R]  blocked: Prior epic implementation exit evidence is not yet available; coordinator-only planning
 Trigger: Dependency planning-task completion alone never permits downstream coding; require the prior epic's implementation acceptance, substitute its resulting milestone task IDs, then groom this epic. E5 may start with review-only production while E3/E4 remain disabled.
 
 ### E3 - Bounded B/C remediation
