@@ -18,7 +18,8 @@ import (
 const (
 	// DeliveryV1ProtocolVersion identifies the caller-facing wire contract.
 	DeliveryV1ProtocolVersion = "code-delivery/v1"
-	DeliveryV1MaxJSONBytes    = 1 << 20
+	// DeliveryV1MaxJSONBytes caps each encoded or received wire document.
+	DeliveryV1MaxJSONBytes = 1 << 20
 
 	deliveryV1MaxIDLength          = 128
 	deliveryV1MaxTextLength        = 4096
@@ -34,8 +35,10 @@ const (
 var (
 	// ErrDeliveryV1Malformed reports invalid JSON structure or encoding.
 	ErrDeliveryV1Malformed = errors.New("malformed code-delivery/v1 document")
-	ErrDeliveryV1Oversize  = errors.New("code-delivery/v1 document exceeds size limit")
-	ErrDeliveryV1Invalid   = errors.New("invalid code-delivery/v1 value")
+	// ErrDeliveryV1Oversize reports a document larger than the wire limit.
+	ErrDeliveryV1Oversize = errors.New("code-delivery/v1 document exceeds size limit")
+	// ErrDeliveryV1Invalid reports invalid semantic values or bindings.
+	ErrDeliveryV1Invalid = errors.New("invalid code-delivery/v1 value")
 
 	deliveryV1ObjectIDPattern = regexp.MustCompile(`^(?:[0-9a-f]{40}|[0-9a-f]{64})$`)
 	deliveryV1DigestPattern   = regexp.MustCompile(`^[0-9a-f]{64}$`)
