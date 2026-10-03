@@ -20,7 +20,7 @@ import (
 	"github.com/ajent-social/APRL/internal/clock"
 	"github.com/ajent-social/APRL/internal/plantasks"
 	"github.com/ajent-social/APRL/internal/storage"
-	"github.com/ajent-social/APRL/internal/testutil"
+	"github.com/ajent-social/APRL/tests/testutil"
 )
 
 const (
@@ -507,11 +507,11 @@ func TestPlanDelegationMalformedAndCrossCallerRequestsCreateNoBinding(t *testing
 	if _, err := ownerService.Submit(ctx, raw); err != nil {
 		t.Fatalf("admit owner request: %v", err)
 	}
-	if _, err := wrongCallerService.Get(ctx, request.DelegationID); !errors.Is(err, plantasks.ErrDelegationUnauthenticated) {
-		t.Fatalf("cross-caller Get error = %v, want ErrDelegationUnauthenticated", err)
+	if _, err := wrongCallerService.Get(ctx, request.DelegationID); !errors.Is(err, plantasks.ErrNotFound) {
+		t.Fatalf("cross-caller Get error = %v, want non-disclosing ErrNotFound", err)
 	}
-	if _, err := wrongCallerService.Cancel(ctx, request.DelegationID); !errors.Is(err, plantasks.ErrDelegationUnauthenticated) {
-		t.Fatalf("cross-caller Cancel error = %v, want ErrDelegationUnauthenticated", err)
+	if _, err := wrongCallerService.Cancel(ctx, request.DelegationID); !errors.Is(err, plantasks.ErrNotFound) {
+		t.Fatalf("cross-caller Cancel error = %v, want non-disclosing ErrNotFound", err)
 	}
 	binding, err := ownerService.Get(ctx, request.DelegationID)
 	if err != nil || binding.Status != plantasks.DelegationAdmitted || binding.Cancelled {
@@ -687,12 +687,19 @@ func TestPlanDelegationPersistsExactNanosecondExpiryAndScope(t *testing.T) {
 	if binding.Request.Spec.Envelope.ExpiresAt != request.Spec.Envelope.ExpiresAt || string(binding.RequestBytes) != string(raw) {
 		t.Fatalf("binding changed request or nanosecond expiry: expires=%s request=%q", binding.Request.Spec.Envelope.ExpiresAt.Format(time.RFC3339Nano), binding.RequestBytes)
 	}
-	var storedBytes []byte
-	var storedDigest, storedExactExpiry string
-	var storedScope []byte
-	if err := db.Pool.QueryRow(ctx, `SELECT request_bytes, request_digest, expires_at_exact, request_scope::text
+	var storedBytes, storedScope, storedAcceptance, storedEnvelope []byte
+	var storedDigest, storedExactExpiry, storedProject, storedJob, storedTask, storedPlanDigest string
+	var storedRepository, storedBranch, storedSourceCommit, storedPolicy, storedProfile, storedMode string
+	var storedPlanRevision, storedMaxAttempts int64
+	var storedMaxConcurrent int
+	if err := db.Pool.QueryRow(ctx, `SELECT request_bytes, request_digest, expires_at_exact, request_scope::text,
+		project_id, job_id, task_id, plan_revision, plan_digest, repository, target_branch, source_commit,
+		acceptance::text, policy_revision, profile_revision, execution_mode, budget_envelope::text, max_concurrent, max_attempts
 		FROM plan_delegations WHERE caller_id=$1 AND delegation_id=$2`, request.CallerID, request.DelegationID).
-		Scan(&storedBytes, &storedDigest, &storedExactExpiry, &storedScope); err != nil {
+		Scan(&storedBytes, &storedDigest, &storedExactExpiry, &storedScope,
+			&storedProject, &storedJob, &storedTask, &storedPlanRevision, &storedPlanDigest,
+			&storedRepository, &storedBranch, &storedSourceCommit, &storedAcceptance,
+			&storedPolicy, &storedProfile, &storedMode, &storedEnvelope, &storedMaxConcurrent, &storedMaxAttempts); err != nil {
 		t.Fatalf("load immutable persisted request scope: %v", err)
 	}
 	if string(storedBytes) != string(raw) || storedDigest != binding.RequestDigest || storedExactExpiry != request.Spec.Envelope.ExpiresAt.Format(time.RFC3339Nano) {
@@ -702,7 +709,19 @@ func TestPlanDelegationPersistsExactNanosecondExpiryAndScope(t *testing.T) {
 	if err := json.Unmarshal(storedScope, &scope); err != nil {
 		t.Fatalf("decode durable scope: %v", err)
 	}
-	if scope.CallerID != request.CallerID || scope.ProjectID != request.ProjectID || scope.JobID != request.JobID || scope.TaskID != request.TaskID ||
+	var accepted []string
+	if err := json.Unmarshal(storedAcceptance, &accepted); err != nil {
+		t.Fatalf("decode durable acceptance scope: %v", err)
+	}
+	var envelope plantasks.DeliveryV1Envelope
+	if err := json.Unmarshal(storedEnvelope, &envelope); err != nil {
+		t.Fatalf("decode durable envelope scope: %v", err)
+	}
+	if storedProject != request.ProjectID || storedJob != request.JobID || storedTask != request.TaskID || storedPlanRevision != int64(request.PlanRevision) || storedPlanDigest != request.PlanDigest ||
+		storedRepository != request.Spec.Repository || storedBranch != request.Spec.TargetBranch || storedSourceCommit != request.Spec.SourceCommit || storedPolicy != request.Spec.PolicyRevision ||
+		storedProfile != request.Spec.ProfileRevision || storedMode != request.Spec.ExecutionMode || !reflect.DeepEqual(accepted, request.Spec.Acceptance) ||
+		!reflect.DeepEqual(envelope, request.Spec.Envelope) || storedMaxConcurrent != request.Spec.Envelope.MaxConcurrent || storedMaxAttempts != int64(request.Spec.Envelope.MaxAttempts) ||
+		!reflect.DeepEqual(scope, request) || scope.CallerID != request.CallerID || scope.ProjectID != request.ProjectID || scope.JobID != request.JobID || scope.TaskID != request.TaskID ||
 		scope.PlanRevision != request.PlanRevision || scope.PlanDigest != request.PlanDigest || scope.Spec.Repository != request.Spec.Repository ||
 		scope.Spec.TargetBranch != request.Spec.TargetBranch || scope.Spec.SourceCommit != request.Spec.SourceCommit ||
 		scope.Spec.PolicyRevision != request.Spec.PolicyRevision || scope.Spec.ProfileRevision != request.Spec.ProfileRevision ||
