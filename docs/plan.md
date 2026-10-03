@@ -128,7 +128,7 @@ Acceptance: T1.1-T1.19 pass on owned test services; a signed event completes thr
   - S1.18.1 Verify: Disable the generation guard in an owned test worktree and observe the stale-result regression fail; restore and report both outcomes. Run the scoped tests, then formatter/linter checks after code changes.
 - [x] T1.19 Install scoped quality gates and record foundation handoff  Owner: coordinator  Est: 60m  kind: agent stage: author delivery-gate: T1.19.R  verifies: [infrastructure, UC-008]  deps: [T1.18.R]  acc: [CI runs gofmt/goimports, go vet, golangci-lint and unit/API/integration/system tests with real service fixtures and no silent integration skips; unsupported paid-execution capability stays disabled; record exact green commands and all pending live integration prerequisites. The CI workflow provisions owned Postgres/Redis service fixtures, sets required URLs, verifies executed test counts, and serializes the full-suite race lane.]  blocked-by: [T1.18.R]  lane: agent
   - Scope/contract: [docs/tasks/T1.19.md](tasks/T1.19.md); exact owned files and verification commands are listed there.
-- [ ] T1.19.R Independently review and deliver T1.19 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/12 blocked-by: [T1.19] acc: [exact-head independent acceptance, guarded merge and actual landing verified]
+- [x] T1.19.R Independently review and deliver T1.19 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/12 blocked-by: [T1.19] acc: [exact-head independent acceptance, guarded merge and actual landing verified]
   - S1.19.1 Verify: Make a required integration fixture absent and assert CI fails rather than passes/skips. Run the scoped tests, then formatter/linter checks after code changes.
 
 ### E2 - Review-only B with verified runtime and metering
@@ -162,11 +162,24 @@ Acceptance: Deploy to production and observe health, signed deliveries, recovery
 
 E6 integrates the complete lifecycle adapter with generic plan/apply/claim workflows while preserving standalone APRL operation. It does not assert live readiness. E6 implementation depends on E1 foundation handoff and the frozen external protocol. The exact wire schema is frozen in [code-delivery/v1](contracts/code-delivery-v1.md); do not implement guessed fields.
 
-- [ ] T6.0 PLAN: map frozen whole-lifecycle integration contract to service adapter  Owner: coordinator  Est: 60m  kind: plan  delivers: [versioned protocol, compatibility policy, lifecycle/readiness mapping, standalone and delegated acceptance]  deps: [T1.19.R]  acc: [Architecture-frozen schema and service-specific authoritative admission/result adapter are documented; no second scheduler is introduced; standalone flow remains complete]  blocked-by: [T1.19.R]  blocked: E1 handoff and authoritative adapter mapping remain pending; wire schema is frozen
-- [ ] T6.1 Implement the lifecycle protocol adapter  Owner: coordinator  Est: 90m  kind: agent  verifies: [UC-001, UC-002, UC-003, UC-004, UC-008]  deps: [T6.0]  acc: [Approved lifecycle intent maps to APRL canonical child IDs/state/readiness; result and admission facts are authenticated, idempotent, fenced and reconciled; protocol version compatibility is explicit]  blocked-by: [T6.0]
-- [ ] T6.2 Route standalone and delegated lifecycles through one scheduler  Owner: coordinator  Est: 90m  kind: agent  verifies: [UC-001, UC-002, UC-003, UC-004]  deps: [T6.1]  acc: [Standalone author/review/fix/re-review/merge remains executable; delegated mode uses the same APRL scheduler; review is ordinary apply+claim work; blocking findings expand bounded fix/re-review children; reviewer verifies exact head/base, merges and verifies landing]  blocked-by: [T6.1]
-- [ ] T6.3 Integrate generic task tooling with lifecycle admission  Owner: shared-tooling maintainer + coordinator  Est: 90m  kind: agent  verifies: [infrastructure]  deps: [T6.1]  acc: [Generic plan/apply/claim task representation, readiness and stage routing remain reusable; ordinary descendants wait for verified landing; explicit speculative dependencies are recorded and confer no release authority; service adapter remains authoritative; no review exemption exists]  blocked-by: [T6.1]
-- [ ] T6.4 Independently review lifecycle integration changes  Owner: independent reviewer  Est: 60m  kind: agent  verifies: [infrastructure]  stage: review  deps: [T6.2, T6.3]  acc: [Review task is executable by normal apply+claim; records PR URL and exact head; reviewer is independent; blocker findings create bounded fix/re-review tasks; approval covers exact head/base; merge and verified landing are recorded]  blocked-by: [T6.2, T6.3]
+- [ ] T6.0 PLAN: map frozen whole-lifecycle integration contract to service adapter  Owner: coordinator Est: 60m kind: plan stage: author delivery-gate: T6.0.R deps: [T1.19.R] blocked-by: [T1.19.R] acc: [Frozen wire-to-service mapping and five bounded implementation/review pairs documented; preserve standalone/product flow and generic tooling; no second scheduler or runtime activation]
+  - Scope/contract: [docs/tasks/T6.0.md](tasks/T6.0.md).
+- [ ] T6.0.R Independently review and deliver the lifecycle adapter plan  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T6.0] acc: [exact-head plan acceptance, complete acyclic ownership/DAG and preserved wire/scope, guarded merge and actual landing verified]
+- [ ] T6.1 Implement strict code-delivery v1 codec  Owner: coordinator Est: 90m kind: agent stage: author delivery-gate: T6.1.R lane: agent deps: [T6.0.R] blocked-by: [T6.0.R] acc: [Exact frozen canonical bytes/digest; strict bounded JSON, required fields/enums/graphs and opaque external identifiers; zero-cost schema without fabricated admission or settlement]
+  - Scope/contract: [docs/tasks/T6.1.md](tasks/T6.1.md).
+- [ ] T6.1.R Independently review and deliver T6.1 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T6.1] acc: [exact-head independent acceptance, bounded explicit fix/re-review after blockers, guarded merge and actual landing verified]
+- [ ] T6.2 Persist atomic delegation binding through the canonical scheduler  Owner: coordinator Est: 90m kind: agent stage: author delivery-gate: T6.2.R lane: agent deps: [T6.1.R] blocked-by: [T6.1.R] acc: [Real PostgreSQL caller/id/digest idempotency and lifecycle creation; stable denial binding, aggregate admissions/concurrency and exact expiry/cancel fences; standalone canonical flow remains unchanged]
+  - Scope/contract: [docs/tasks/T6.2.md](tasks/T6.2.md).
+- [ ] T6.2.R Independently review and deliver T6.2 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T6.2] acc: [exact-head independent acceptance, bounded explicit fix/re-review after blockers, guarded merge and actual landing verified]
+- [ ] T6.3 Expose caller-scoped HTTPS lifecycle handlers  Owner: coordinator Est: 90m kind: agent stage: author delivery-gate: T6.3.R lane: agent deps: [T6.2.R] blocked-by: [T6.2.R] acc: [Exact PUT/GET/cancel routes, mandatory trusted authentication/authorization, one MiB strict JSON, caller-scoped read/denial and finite redacted failures; same store/adapter, no production-selectable fixture]
+  - Scope/contract: [docs/tasks/T6.3.md](tasks/T6.3.md).
+- [ ] T6.3.R Independently review and deliver T6.3 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T6.3] acc: [exact-head independent acceptance, bounded explicit fix/re-review after blockers, guarded merge and actual landing verified]
+- [ ] T6.4 Persist trusted landing evidence and project sequenced observations  Owner: coordinator Est: 90m kind: agent stage: author delivery-gate: T6.4.R lane: agent deps: [T6.2.R, T6.3.R] blocked-by: [T6.2.R, T6.3.R] acc: [Full host-returned evidence persisted atomically; actual canonical child crosswalk, positive monotonic replay-safe sequence, current independent exact-head/base/policy landing alone releases; cancel/unknown and zero-cost non-settlement preserved]
+  - Scope/contract: [docs/tasks/T6.4.md](tasks/T6.4.md).
+- [ ] T6.4.R Independently review and deliver T6.4 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T6.4] acc: [exact-head independent acceptance, bounded explicit fix/re-review after blockers, guarded merge and actual landing verified]
+- [ ] T6.5 Compose delegated and standalone delivery with ordinary apply and claims  Owner: coordinator Est: 90m kind: agent stage: author delivery-gate: T6.5.R lane: agent deps: [T6.1.R, T6.2.R, T6.3.R, T6.4.R] blocked-by: [T6.1.R, T6.2.R, T6.3.R, T6.4.R] acc: [Real PostgreSQL/loopback HTTP and published generic shim snapshot/WON/fresh admission/stage/fenced acknowledgement fixtures; standalone and delegated author/review/fix/re-review/verified landing regressions; immutable grants and no runtime/profile activation]
+  - Scope/contract: [docs/tasks/T6.5.md](tasks/T6.5.md).
+- [ ] T6.5.R Independently review and deliver T6.5 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T6.5] acc: [exact-head independent acceptance, bounded explicit fix/re-review after blockers, guarded merge and actual landing verified]
 Trigger: Dependency planning-task completion alone never permits downstream coding; require the prior epic's implementation acceptance, substitute its resulting milestone task IDs, then groom this epic. E5 may start with review-only production while E3/E4 remain disabled.
 
 
@@ -300,7 +313,7 @@ These deferred planning waves are triggers, not a fixed calendar. Expansion inse
 
 - [x] T1.17.R Scheduling reference; acceptance and scope are in the WBS.
 - [x] T1.18.R Scheduling reference; acceptance and scope are in the WBS.
-- [ ] T1.19.R Scheduling reference; acceptance and scope are in the WBS.
+- [x] T1.19.R Scheduling reference; acceptance and scope are in the WBS.
 
 #### Wave 20: Caller protocol integration after E1 delivery
 
@@ -310,11 +323,21 @@ These deferred planning waves are triggers, not a fixed calendar. Expansion inse
 - [ ] T6.3 Scheduling reference; acceptance and scope are in the WBS.
 - [ ] T6.4 Scheduling reference; acceptance and scope are in the WBS.
 
+#### Wave 21: E6 planning and implementation delivery gates
+
+- [ ] T6.0.R Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T6.1.R Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T6.2.R Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T6.3.R Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T6.4.R Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T6.5 Scheduling reference; acceptance and scope are in the WBS.
+- [ ] T6.5.R Scheduling reference; acceptance and scope are in the WBS.
+
 ## 6. Timeline and Milestones
 
 | ID | Milestone | Dependencies | Exit evidence |
 | --- | --- | --- | --- |
-| M1 | Foundation ready | T1.19 | Real DB/Redis fault slice and scoped CI green; paid runtime disabled if unproven |
+| M1 | Foundation ready | T1.19.R | Real DB/Redis fault slice and scoped CI green; paid runtime disabled if unproven |
 | M2 | Review-only pilot | Expanded E2 exit task | Actual sandbox review, isolation/metering proof and review benchmark |
 | M3 | Closed-loop pilot | Expanded E3 exit task | Shared attempt bounds, verified fixes, pause and human-push tests |
 | M4 | End-to-end pilot | Expanded E4 exit task | Issue-to-PR and guarded merge tests with actual GitHub rules |
@@ -470,3 +493,7 @@ T1.18.R verified delivery: independent review accepted PR11 exact head6b68ead471
 T8.3 verification receipt: the independently landed supervisor and PR11 system fixtures satisfy reservation-before-launch, exact native leader identity, bounded TERM/KILL shutdown, UNKNOWN capacity retention and proof-only reaping. Both full normal and serialized race logs contain12passing TestSupervisor terminal events (including their subtests), with no skips; the complete suites each have315passing events. The real PostgreSQL/native process cases cover ambiguous start, activation fences, unverifiable descendants, owned cleanup, pause and timeout. T1.18 additionally records an exact-ledger REAPED hold while usage stays UNKNOWN. This is local E1 fixture verification; T8.2 remains open for its separate startup bridge, and Linux hosted, production host inventory, OCI and provider qualification remain distinct pending work. No new implementation is introduced by this verification task.
 
 T1.19 author handoff: PR12 installs service-backed Ubuntu24.04 CI with immutable pins, complete tracked-Go formatting, both pipeline statuses and complete JSON/package accounting. Hosted run37152786186 on functional headb363f02 passed315regular/315race terminal test events, zero failures/skips, vet/lint/format; Linux-only identifier corrections and help-only pinned CLI prerequisite are included. The final handoff documentation head must receive its own green hosted check before independent T1.19.R acceptance, guarded merge and actual landing. Linux-native fixture qualification does not establish OCI containment, durable production host inventory, provider settlement or runtime activation.
+
+T1.19.R verified delivery: independent review accepted PR12 exact headea6865b7e2effbc8d6809f135976d0c7d6734eca with final hosted run37153113270 green315normal/315race events, zero failures/skips. Guarded rebase landed5bb75568c60d26800dbfd7cac2be669f23391b25 with whole treef75288ed22d1f572423b2496311641437ae4b58b and reviewed base ancestry verified; review claim released. E1 code/owned-service/native Linux fixture qualification is complete19/19. Production host inventory, OCI/provider/subscription and settlement authority remain separate pending work.
+
+T6.0 groom mapping: [implementation plan](contracts/code-delivery-v1-implementation.md) preserves the frozen external schema and ordinary canonical apply/claim path. The five author/review pairs replace the coarse E6 rows and retain standalone/product regressions plus generic tooling acceptance. T6.0.R must deliver this plan before implementation; all downstream ordinary dependencies use review delivery gates. No profile, provider, factory or production service is activated.

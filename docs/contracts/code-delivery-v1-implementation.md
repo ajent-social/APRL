@@ -1,0 +1,45 @@
+# Code delivery v1 service implementation plan
+
+This is the proposed implementation mapping for the frozen [wire contract](code-delivery-v1.md), not evidence of a running adapter. Internal plan-task contract version 1 remains separate from external `code-delivery/v1`. E1 supplies PostgreSQL, immutable task receipts, the canonical adapter and explicit trusted host interfaces. Production CLI roles remain unavailable until their mandatory factories exist.
+
+## Ownership and delivery sequence
+
+T6.0 documents this mapping and the five task contracts. T6.0.R independently reviews the plan PR and verifies landing before implementation. T6.1 implements only the strict codec/golden compatibility; T6.2 persists atomic delegation binding; T6.3 supplies scoped HTTPS handlers using the same adapter; T6.4 persists full evidence and projects observations; T6.5 composes owned PostgreSQL/loopback fixtures with ordinary generic apply/claim tooling. Each code author has its own dependent review task and PR. A negative formal review creates an explicit bounded fix task and dependent re-review; it never silently updates the admitted review head.
+
+The service remains the one scheduler. The caller persists one delegation intent and observes the authoritative lifecycle. Generic plan/apply/claim provides representation, atomic claims and stage dispatch; it cannot synthesize admission or release evidence. Standalone and delegated execution use the same canonical adapter/store. Existing GitHub/product review flow remains intact; implementation review tasks do not replace that product flow, and its regression suite remains required.
+
+## Lossless binding and idempotency
+
+Authenticate the caller outside request JSON, authorize its project/repository/policy/profile and independently qualified subscription-only scope, then bind that principal to `caller_id`. Persist authenticated caller plus opaque delegation ID, exact canonical request bytes/digest, external project/job/task/plan revision/digest, all immutable Spec/Envelope fields, internal lifecycle UUID, and observation sequence/source revision. External identifiers are bounded opaque strings; the frozen golden fixture deliberately uses non-UUID identifiers. Internal lifecycle/task IDs are separate UUIDs.
+
+A PostgreSQL uniqueness constraint on authenticated caller/delegation and one transaction arbitrate concurrent PUT and create the lifecycle/tasks with the binding. Same digest returns the same lifecycle; changed scope conflicts. An ambiguous PUT is reconciled by caller-scoped GET; a not-found GET is not a grant to create a second lifecycle. GET/cancel cannot reveal another caller's existence. Version compatibility is explicit: v1 admits subscription_only and zero cost only; future paid policy needs a separately reviewed version.
+
+Authenticated, codec-valid requests reserve an immutable caller/delegation/digest intent binding before an admission policy decision. A definitive pre-work denial is persisted as denied with no canonical lifecycle, no children and no execution, and returns a redacted 403 JSON error; caller-scoped GET/replay returns the same denial. Different bytes conflict 409. That denied key cannot later create a lifecycle; a newly authorized changed scope needs a new caller-approved delegation ID. Unauthenticated or malformed requests bind no key. A temporary unavailable/unknown policy decision is 503, retains the same intent/digest for reconciliation, and cannot launch work; it is not a terminal denial. Only successful authorization atomically creates the one canonical lifecycle and returns the frozen 200/201/202 Observation. No denial field or success state is added to the frozen wire schema.
+
+## Admission policy and exact limits
+
+The receiver conservatively treats external `max_attempts` as one aggregate budget of executable child admissions, including independent reviews and re-reviews. The existing internal per-task attempt limit cannot multiply this allowance. Sum/count admissions transactionally under the lifecycle lock, with overflow checks, before every admission through the canonical adapter. The authorizer denies insufficient capacity for mandatory author plus independent review before launching work. A positive value of 1 is still valid wire syntax; policy denial is distinct from codec validation. This receiver policy must be checked against the actual caller during interoperability qualification; local fixtures do not prove that agreement.
+
+Bound concurrency by the external grant (at most 6) and stricter host policy. Persist exact UTC expiry, including nanoseconds. If the internal duration field needs an integer-second ceiling, enforce the separate exact external deadline at every admission and evidence transition; rounding cannot extend authority. Cancellation or expiry fences new admissions and descendant release while retaining late facts/history and unresolved effects. Fix/re-review tasks preserve the immutable scope and aggregate envelope, with conservative correction limits derived from remaining capacity. No retry, replacement child or registry bypass can reset the aggregate counter.
+
+Monetary fields remain zero only under an independently qualified subscription-only host policy. These limits have no funding semantics. Never translate zero into a positive paid provider budget, invent a settlement ID, or infer settled usage from success, landing, cancellation or process reaping. An ambiguous effect remains lifecycle unknown and blocks release even when the wire's zero-cost accounting cannot express a positive charge. Unresolved process/workspace capacity remains authoritative separately from money.
+
+## Canonical tasks and observations
+
+Expose the actual canonical UUID tasks using the generic claim selector `T-<UUID>`; dependency and finding references are stable, unique and lossless. Map internal stages author/review/fix/rereview to wire kinds author/review/fix/re_review. The initial review UUID is also the existing stable internal delivery gate across corrections. Do not duplicate that UUID or invent a synthetic independently executable delivery child. The wire's delivery kind is emitted only for an actual canonical task if a later reviewed internal contract supplies one.
+
+A completed negative review is execution completion, not delivery. Project changes_requested and bounded fix/re_review children without releasing ordinary descendants. Persist positive monotonic observation sequence and source revision; exact same-sequence replay returns identical bytes and conflicting replay fails. Aggregate states preserve admitted/running/changes_requested/landed/failed/paused/canceled/unknown. After cancellation, late landing evidence is recorded without restoring release authority.
+
+## Full landed evidence
+
+The current error-only outcome verifier is not a complete external LandedReceipt. Add a mandatory bounded trusted evidence path and persist its full repository/target/PR, reviewed head/base, policy revision, actual landed commit, source digest, reviewer/author/verifier and verified time. Validate repository/scope/policy and every contributor's reviewer independence. No worker JSON, caller assertion, completed checkbox, shared GitHub username or merge response alone supplies this authority.
+
+Keep the adapter's authenticated actor, winning claim, current policy and fresh host-proof checks outside and again at the locked transition. Merge execution, CI waits and provider work do not occur under PostgreSQL locks. Only a current authenticated landed observation with complete matching persisted evidence releases ordinary dependencies. Head/base/policy changes require fresh review; missing or ambiguous proof projects unknown rather than success. Landing never fabricates accounting settlement.
+
+## HTTP and qualification boundary
+
+Implement exact PUT/GET/POST-cancel routes, path/body/caller binding, JSON media types and 1 MiB request/response caps; reject unknown/duplicate/missing fields, extra JSON and invalid states/bindings. Use finite contexts, redacted errors and caller-scoped queries. Production construction requires trusted HTTPS bearer authentication and authorization. Loopback HTTP exists only through explicit test adapters and is never selectable by a production CLI flag.
+
+Qualify strict canonical bytes/digest against the frozen synthetic fixture, real PostgreSQL races/idempotency/cancellation, authenticated loopback HTTP and full fixture evidence. T6.5 also exercises the published generic shim's snapshot, atomic WON, fresh snapshot, admission, stage execution and fenced acknowledgement with canonical claim IDs in a test-only registry. No installed registry/profile/factory is activated. Standalone regression coverage remains required.
+
+Actual caller/service interoperability, operator credential/repository grants, durable production host inventory, OCI isolation, subscription authority, provider settlement and live activation are separate qualification gates. A one-sided fixture, matching digest, help-only CLI or independently landed code does not satisfy them.
