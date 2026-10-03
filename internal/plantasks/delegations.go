@@ -464,6 +464,9 @@ func (d *Delegations) finishDecision(ctx context.Context, callerID string, reque
 		if initial.Lifecycle.ID == "" {
 			return DelegationBinding{}, fmt.Errorf("factory lifecycle ID is empty: %w", ErrDelegationUnavailable)
 		}
+		if _, err := tx.Exec(ctx, `SAVEPOINT delegated_lifecycle_creation`); err != nil {
+			return DelegationBinding{}, fmt.Errorf("savepoint delegated lifecycle creation: %w", ErrDelegationUnavailable)
+		}
 		payload, err := json.Marshal(initial)
 		if err != nil {
 			return DelegationBinding{}, fmt.Errorf("encode initial lifecycle: %w", ErrDelegationUnavailable)
@@ -474,14 +477,38 @@ func (d *Delegations) finishDecision(ctx context.Context, callerID string, reque
 		if err := insertReceipts(ctx, tx, *initial); err != nil {
 			return DelegationBinding{}, fmt.Errorf("insert initial delegated receipts: %w", ErrDelegationUnavailable)
 		}
-		encodedAuthorization, err := json.Marshal(authorization)
-		if err != nil {
-			return DelegationBinding{}, fmt.Errorf("encode admitted delegation decision: %w", ErrDelegationUnavailable)
-		}
-		tag, err := tx.Exec(ctx, `UPDATE plan_delegations SET status='admitted', authorization=$3::jsonb, lifecycle_id=$4::uuid, lifecycle_revision=$5, observation_sequence=observation_sequence+1, updated_at=CURRENT_TIMESTAMP
-			WHERE caller_id=$1 AND delegation_id=$2 AND status='intent' AND cancelled=FALSE`, callerID, request.DelegationID, encodedAuthorization, initial.Lifecycle.ID, initial.Revision)
-		if err != nil || tag.RowsAffected() != 1 {
-			return DelegationBinding{}, fmt.Errorf("persist admitted delegation: %w", ErrDelegationUnavailable)
+		if !d.store.clock.Now().UTC().Before(request.Spec.Envelope.ExpiresAt) {
+			if _, err := tx.Exec(ctx, `ROLLBACK TO SAVEPOINT delegated_lifecycle_creation`); err != nil {
+				return DelegationBinding{}, fmt.Errorf("remove expired delegated lifecycle: %w", ErrDelegationUnavailable)
+			}
+			if _, err := tx.Exec(ctx, `RELEASE SAVEPOINT delegated_lifecycle_creation`); err != nil {
+				return DelegationBinding{}, fmt.Errorf("release expired lifecycle savepoint: %w", ErrDelegationUnavailable)
+			}
+			authorization.Allowed = false
+			authorization.GrantRevision = ""
+			authorization.Reason = "request expired during lifecycle persistence"
+			encodedAuthorization, err := json.Marshal(authorization)
+			if err != nil {
+				return DelegationBinding{}, fmt.Errorf("encode expired delegation decision: %w", ErrDelegationUnavailable)
+			}
+			tag, err := tx.Exec(ctx, `UPDATE plan_delegations SET status='denied', authorization=$3::jsonb, observation_sequence=observation_sequence+1, updated_at=CURRENT_TIMESTAMP
+				WHERE caller_id=$1 AND delegation_id=$2 AND status='intent' AND cancelled=FALSE`, callerID, request.DelegationID, encodedAuthorization)
+			if err != nil || tag.RowsAffected() != 1 {
+				return DelegationBinding{}, fmt.Errorf("persist expiry denial: %w", ErrDelegationUnavailable)
+			}
+		} else {
+			if _, err := tx.Exec(ctx, `RELEASE SAVEPOINT delegated_lifecycle_creation`); err != nil {
+				return DelegationBinding{}, fmt.Errorf("release delegated lifecycle savepoint: %w", ErrDelegationUnavailable)
+			}
+			encodedAuthorization, err := json.Marshal(authorization)
+			if err != nil {
+				return DelegationBinding{}, fmt.Errorf("encode admitted delegation decision: %w", ErrDelegationUnavailable)
+			}
+			tag, err := tx.Exec(ctx, `UPDATE plan_delegations SET status='admitted', authorization=$3::jsonb, lifecycle_id=$4::uuid, lifecycle_revision=$5, observation_sequence=observation_sequence+1, updated_at=CURRENT_TIMESTAMP
+				WHERE caller_id=$1 AND delegation_id=$2 AND status='intent' AND cancelled=FALSE`, callerID, request.DelegationID, encodedAuthorization, initial.Lifecycle.ID, initial.Revision)
+			if err != nil || tag.RowsAffected() != 1 {
+				return DelegationBinding{}, fmt.Errorf("persist admitted delegation: %w", ErrDelegationUnavailable)
+			}
 		}
 	}
 	result, err := scanDelegation(ctx, tx, callerID, request.DelegationID, false)
