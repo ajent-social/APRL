@@ -362,16 +362,30 @@ func TestResults(t *testing.T) {
 		}
 		resultsPushWebhook(t, f)
 		status, response := resultsSubmitPush(t, f)
-		if status != http.StatusOK || !response.Accepted {
-			t.Fatalf("paused webhook-first result=(%d,%+v)", status, response)
+		if status != http.StatusConflict || response.Error != "stale_result" {
+			t.Fatalf("paused webhook-first result=(%d,%+v), want stale", status, response)
 		}
 		var replies int
 		var marker bool
+		var runStatus, jobStatus, reservationStatus string
+		var leaseToken, leaseExpiresAt *string
+		if err := f.db.Pool.QueryRow(f.ctx, `SELECT execution_status FROM agent_runs WHERE id=$1::uuid`, f.lease.RunID).Scan(&runStatus); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.db.Pool.QueryRow(f.ctx, `SELECT status,lease_token,lease_expires_at::text FROM jobs WHERE id=$1::uuid`, f.jobID).Scan(&jobStatus, &leaseToken, &leaseExpiresAt); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.db.Pool.QueryRow(f.ctx, `SELECT status FROM budget_reservations WHERE run_id=$1::uuid`, f.lease.RunID).Scan(&reservationStatus); err != nil {
+			t.Fatal(err)
+		}
 		if err := f.db.Pool.QueryRow(f.ctx, `SELECT count(*) FROM jobs WHERE task_id=$1::uuid AND operation_type='reply'`, f.taskID).Scan(&replies); err != nil {
 			t.Fatal(err)
 		}
-		if err := f.db.Pool.QueryRow(f.ctx, `SELECT (result->>'reply_jobs_created')::boolean FROM github_operations WHERE id=$1::uuid`, f.operationID).Scan(&marker); err != nil {
+		if err := f.db.Pool.QueryRow(f.ctx, `SELECT COALESCE((result->>'reply_jobs_created')::boolean,false) FROM github_operations WHERE id=$1::uuid`, f.operationID).Scan(&marker); err != nil {
 			t.Fatal(err)
+		}
+		if runStatus != "TERMINATED" || jobStatus != "CANCELLED" || leaseToken != nil || leaseExpiresAt != nil || reservationStatus != "UNKNOWN" {
+			t.Fatalf("paused run/job/budget=(%s,%s,%v,%v,%s), want TERMINATED/CANCELLED/nil/nil/UNKNOWN", runStatus, jobStatus, leaseToken, leaseExpiresAt, reservationStatus)
 		}
 		if replies != 0 || marker {
 			t.Fatalf("paused reply disposition jobs=%d marker=%t, want 0/false", replies, marker)

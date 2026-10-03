@@ -1,6 +1,6 @@
 # APRL Implementation Plan
 
-Change Summary: 2026 10 03 - Durable control-plane foundation PR1 is present on current main (commit 6feaf92); E1 remains incomplete. T1.1-T1.14 have accepted task evidence; T1.15-T1.19 remain pending. The complete standalone/delegated lifecycle integration contract is documented below; neutral code-delivery/v1 wire schema is frozen; adapter and interoperability proof remain pending. No live paid execution or production rollout is claimed.
+Change Summary: 2026 10 03 - Durable control-plane foundation PR1 is present on current main (commit 6feaf92); E1 remains incomplete. T1.1-T1.16 have accepted/delivered task evidence; T1.17-T1.19 remain pending. The complete standalone/delegated lifecycle integration contract is documented below; neutral code-delivery/v1 wire schema is frozen; adapter and interoperability proof remain pending. No live paid execution or production rollout is claimed.
 
 ## 1. Context
 
@@ -112,7 +112,7 @@ Acceptance: T1.1-T1.19 pass on owned test services; a signed event completes thr
 - [x] T1.13.F1.R Independently review and deliver exact-head merge receipt correction  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/6 blocked-by: [T1.13.F1] acc: [fresh exact-head source review, guarded merge and actual landing verified]
 - [x] T1.15 Reconcile durable jobs and ambiguous remote operations  Owner: recovery  Est: 90m  kind: agent stage: author delivery-gate: T1.15.R  verifies: [UC-008, UC-009]  deps: [T1.9, T1.13.R, T1.13.F1.R, T1.14]  acc: [Queue loss republishes unfinished work; expired leases fence before replacement; UNKNOWN GitHub writes query fake remote state before retry; labels repair without state advancement; merged state requires remote confirmation.]  blocked-by: [T1.9, T1.13.R, T1.13.F1.R, T1.14]  lane: agent
   - Scope/contract: [docs/tasks/T1.15.md](tasks/T1.15.md); exact owned files and verification commands are listed there.
-- [ ] T1.15.R Independently review and deliver T1.15 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/8 blocked-by: [T1.15] acc: [exact-head independent acceptance, guarded merge and actual landing verified]
+- [x] T1.15.R Independently review and deliver T1.15 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/8 blocked-by: [T1.15] acc: [independently accepted PR head 79e0cad against base c703bdc; shared-account review comment recorded; guarded ordinary rebase landed at 286fa1b with exact reviewed tree]
   - S1.15.1 Verify: Simulate accepted merge plus timeout and assert reconciliation confirms instead of issuing a second merge. Run the scoped tests, then formatter/linter checks after code changes.
 - [x] T1.16 Supervise bounded fixture worker processes  Owner: supervisor  Est: 90m  kind: agent stage: author delivery-gate: T1.16.R  verifies: [UC-005, UC-007, UC-008]  deps: [T1.8, T1.10, T1.11]  acc: [Supervisor launches only the owned fake-agent fixture, records process/run identity, heartbeat, timeout and result; pause kills process group after TERM/KILL grace and fences IPC; cleans only owned task workspaces. Actual OCI/Codex sandbox is deferred to E2. Fixture execution is available only through test injection; production configuration cannot select it. Test production startup rejects a missing OCI adapter instead of running a fake worker.]  blocked-by: [T1.8, T1.10, T1.11]  lane: agent
   - Scope/contract: [docs/tasks/T1.16.md](tasks/T1.16.md); exact owned files and verification commands are listed there.
@@ -188,7 +188,7 @@ Trigger: Dependency planning-task completion alone never permits downstream codi
 - [x] T8.1.R Record initial independent process hold review  Owner: independent-reviewer kind: agent stage: review lane: agent blocked-by: [T8.1] pr-url: https://github.com/ajent-social/APRL/pull/5 acc: [exact-head initial verdict recorded; changes requested, no merge or successful delivery]
 - [x] T8.1.F1 Correct direct process identity publication bypass  Owner: process-holds kind: agent stage: fix delivery-gate: T8.1.R lane: agent blocked-by: [T8.1.R] pr-url: https://github.com/ajent-social/APRL/pull/5 acc: [Started and SQL reject RESERVED bypass; legitimate fixtures consume BeginStart; required checks and corrective PR handoff]
 - [x] T8.1.R2 Independently re-review and deliver process hold primitives  Owner: independent-reviewer kind: agent stage: rereview delivery-gate: T8.1.R lane: agent blocked-by: [T8.1.F1] pr-url: https://github.com/ajent-social/APRL/pull/5 acc: [corrective exact-head review accepted, guarded merge and actual landing verified]
-- [ ] T8.2 Verify startup recovery process reservation integration  Owner: coordinator kind: agent stage: verify lane: agent blocked-by: [T8.1.R2, T1.15.R]  acc: [unresolved reservations block replacement across generations; startup reconciles before sweep or dispatch; ambiguous ownership remains held]
+- [ ] T8.2 Verify startup recovery process reservation integration  Owner: coordinator kind: agent stage: verify lane: agent blocked-by: [T8.1.R2, T1.15.R, T1.17.R]  acc: [unresolved reservations block replacement across generations; startup reconciles before sweep or dispatch; ambiguous ownership remains held]
 - [ ] T8.3 Verify supervisor process ownership integration  Owner: coordinator kind: agent stage: verify lane: agent blocked-by: [T8.1.R2, T1.16.R]  acc: [reservation before launch, exact trusted ownership identity, bounded shutdown, unknown retains capacity, only proven reaped releases]
 - [ ] T8.4 Verify corrected foundation and publish PR  Owner: coordinator  kind: agent stage: verify lane: agent blocked-by: [T8.2, T8.3]  acc: [real database/process boundary regressions, required checks and PR handoff]
 - [ ] T8.5 Independently review and land process reservation correction  Owner: independent-reviewer  kind: agent stage: review lane: agent blocked-by: [T8.4]  acc: [exact PR head accepted, guarded merge and actual landed verification]
@@ -198,6 +198,8 @@ Trigger: Dependency planning-task completion alone never permits downstream codi
 ## 5. Parallel Work and Waves
 
 The coordinator owns shared contracts, integration, plan/roadmap and ADR amendments. Use up to three GPT-6-Luna implementation workers plus one coordinator, matching this session's four slots. Each implementation worker requires its own unique external-SSD worktree and exact task file scope. Read-only planning probes do not own or edit files. Go skill conventions apply: context-first I/O, wrapped errors, no library panics, bounded goroutine lifetimes, consumer-defined interfaces and no fabricated success in production paths. Test doubles live only in _test.go or explicit testutil packages; unavailable runtime adapters fail closed. Model overrides for ambiguous contract/runtime decisions stay on the coordinator. This APRL-specific three-worker limit remains unchanged by this lifecycle documentation update.
+
+Numbered wave headings retain the historical grouping. Apply selects tasks by current dependency readiness, not by a barrier that waits for a lower-numbered blocked author: a review runs as soon as its author handoff is complete, and descendants still require verified landing. No wave number grants speculative execution authority.
 
 | Track | Tasks | Sync boundary |
 | --- | --- | --- |
@@ -293,7 +295,7 @@ These deferred planning waves are triggers, not a fixed calendar. Expansion inse
 - [x] T1.13.R Scheduling reference; acceptance and scope are in the WBS.
 - [x] T1.13.F1 Scheduling reference; acceptance and scope are in the WBS.
 - [x] T1.13.F1.R Scheduling reference; acceptance and scope are in the WBS.
-- [ ] T1.15.R Scheduling reference; acceptance and scope are in the WBS.
+- [x] T1.15.R Scheduling reference; acceptance and scope are in the WBS.
 - [x] T1.16.R Scheduling reference; acceptance and scope are in the WBS.
 
 - [ ] T1.17.R Scheduling reference; acceptance and scope are in the WBS.
@@ -368,7 +370,7 @@ Required execution inputs: owned Postgres 16 and Redis test instances/URLs; Linu
 - [Redis XAUTOCLAIM](https://redis.io/docs/latest/commands/xautoclaim/): pending-message redelivery.
 - [pgx/v5](https://pkg.go.dev/github.com/jackc/pgx/v5): PostgreSQL driver and pool.
 - [Codex configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference#configtoml): provider configuration; experimental rollout tracking is not a USD-cap guarantee.
-- Task contracts: `docs/tasks/T1.1.md` through `docs/tasks/T1.19.md`; T1.1-T1.14 accepted and landed; T1.15-T1.19 pending.
+- Task contracts: `docs/tasks/T1.1.md` through `docs/tasks/T1.19.md`; T1.1-T1.16 accepted and landed; T1.17-T1.19 pending.
 
 - Execution checkpoint 2026 10 01: Wave 6 accepted locally. Integrated build and 92 real-service test cases pass, with zero skips. Next prescribed wave is T1.11/T1.14 on two Luna lanes; compiler checks remain coordinator-only under ADR 004.
 
@@ -428,7 +430,7 @@ Broker corrective author qualification: sourcee0d1072 executed 27 targeted race 
 Broker correction author handoff: PR6 contains the qualified two-file source and review-gated plan. T1.13.F1 is complete as a coding handoff only; T1.13.F1.R must record exact head/base, independently accept, merge and verify actual landing before T1.15 delivery.
 
 
-T8.6 bounded scope: internal/dispatch/dispatch.go, internal/control/control.go, internal/router/router.go and corresponding integration dispatch/controls/router tests. Coordinator owns ADR/plan and integration. Reconciliation owns LABEL_SYNC external I/O and subsequent task/outbox acknowledgement; dispatch never locks a label row around its callback. Cancellation conveys the captured immutable run, not a later replacement, and grants no authority to signal numeric persisted PIDs. Missing authenticated cross-process cancellation transport remains unavailable until assembly supplies it. T1.17 delivery additionally waits T8.6.R.
+T8.6 bounded scope: internal/dispatch/dispatch.go, internal/control/control.go, internal/router/router.go and corresponding integration dispatch/controls/router tests plus tests/api/results_test.go for the revoked paused-webhook result regression. Coordinator owns ADR/plan and integration. Reconciliation owns LABEL_SYNC external I/O and subsequent task/outbox acknowledgement; dispatch never locks a label row around its callback. Cancellation conveys the captured immutable run, not a later replacement, and grants no authority to signal numeric persisted PIDs. Missing authenticated cross-process cancellation transport remains unavailable until assembly supplies it. T1.17 delivery additionally waits T8.6.R.
 
 
 T7.8 scope: shared generic plan/scripts/parse_plan.py and its focused tests; coordinator owns this APRL plan and keeps historical scheduling references outside the canonical WBS while preserving their text. No runtime provider/profile activation or second scheduler. Canonical task identifiers and historical claim receipts remain unchanged.
@@ -446,3 +448,7 @@ T1.16 coding handoff: PR7 contains the qualified native fixture supervisor and c
 T1.15 author qualification: source7583261 composed with independently merged supervisor passed full build,284 regular and284 race executed test cases, zero skipped tests, vet/lint and two-file formatting/import checks. Future repair deadline predicate genuine-red caught premature same-pass retry; restored source passed. Author handoff is complete, but T1.15.R independent exact-head acceptance and actual verified landing remain required before descendants.
 
 T1.16.R delivered: independent review accepted PR7 exactheadce860ac3c4ad81ea9035bb4079a6942e86abc211; guarded ordinary rebase landedc703bdc263653873a7493cab6de0efbd34e4c781. Actual landing tree7831952c56bcc41278c53d5b6c96b8bda6eb71bc equals reviewed tree and ancestry is verified. Shared-account review is COMMENTED, not formal GitHub APPROVED; no hosted checks are claimed. Exact review claimcfb436a57a440d2783916d16fbc652753028d6d2 released. Current E1 delivered count15/19; T1.15 remains authorhandoff pending its independent review.
+
+T1.15.R delivered: independently accepted PR8 head79e0cad668809820ede61acfaa95267f57b39fce against reviewed basec703bdc263653873a7493cab6de0efbd34e4c781. Shared-account review comment https://github.com/ajent-social/APRL/pull/8#issuecomment-5971079936 records the verdict; it is not a formal GitHub APPROVED review. Guarded ordinary rebase merged as286fa1b945da357c1524ea6f3e5838de54f2dc01; reviewed base is an ancestor of main and landed tree d8b0c9118d5d30facf0e18a58253e4417e28bd0f exactly matches the reviewed candidate. GitHub reports dndungu as merger. No hosted checks or live provider/GitHub mutations are claimed. Exact review claim0ba1b0e22daa86679247a5796d4cfe9bf247ca67 released after verification. E1 delivered count16/19.
+
+T8.6 pre-handoff correction: independent source pre-review identified uncleared router lease fields; author fixed atomic clearing and added real-DB leased-run/UNKNOWN-hold/exact-cancel-target coverage. Full composition exposed an older paused-webhook result expectation; the directly affected API regression now requires409 stale_result and retains TERMINATED/CANCELLED/UNKNOWN with no replies, rather than relaxing result authentication. Formal T8.6.R review still starts after the PR handoff. Startup integration verification T8.2 also waits for T1.17.R so a recovery callback alone is not claimed as assembled startup evidence.

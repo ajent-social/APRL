@@ -55,14 +55,14 @@ type Dispatcher struct {
 }
 
 // NewDispatcher constructs a bounded dispatcher. Optional handlers are keyed
-// by CANCEL, LABEL_SYNC, or NOTIFY; missing handlers fail closed and retry.
+// by CANCEL or NOTIFY; LABEL_SYNC belongs exclusively to reconciliation.
 func NewDispatcher(pool *pgxpool.Pool, c clock.Clock, streams *queue.Streams, handlers map[string]Handler) (*Dispatcher, error) {
 	if pool == nil || c == nil || streams == nil {
 		return nil, ErrInvalid
 	}
 	copyHandlers := make(map[string]Handler, len(handlers))
 	for kind, handler := range handlers {
-		if kind == queue.DispatchKind || (kind != "CANCEL" && kind != "LABEL_SYNC" && kind != "NOTIFY") || handler == nil {
+		if kind == queue.DispatchKind || (kind != "CANCEL" && kind != "NOTIFY") || handler == nil {
 			return nil, ErrInvalid
 		}
 		copyHandlers[kind] = handler
@@ -89,7 +89,7 @@ func (d *Dispatcher) DispatchDue(ctx context.Context, limit int) (int, error) {
 		}
 		var item OutboxItem
 		err = tx.QueryRow(rowCtx, `SELECT id::text,task_id::text,COALESCE(job_id::text,''),kind,payload,attempt_count,created_at
-			FROM outbox WHERE published_at IS NULL AND next_attempt_at <= $1
+			FROM outbox WHERE published_at IS NULL AND next_attempt_at <= $1 AND kind <> 'LABEL_SYNC'
 			ORDER BY next_attempt_at,created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED`, d.clock.Now().UTC()).
 			Scan(&item.ID, &item.TaskID, &item.JobID, &item.Kind, &item.Payload, &item.Attempts, &item.CreatedAt)
 		if errors.Is(err, pgx.ErrNoRows) {

@@ -451,6 +451,33 @@ func ensurePendingReplies(ctx context.Context, repos *storage.Repositories, lock
 }
 
 func cancelJobsLocked(ctx context.Context, repos *storage.Repositories, taskID string, now time.Time) error {
+	// Capture the immutable run target before revoking the run or job lease.
+	// An empty value is deliberately emitted for jobs with no admitted run.
+	runs, err := repos.Queries().Query(ctx, `SELECT j.id::text,ar.id::text
+		FROM jobs j JOIN agent_runs ar ON ar.job_id=j.id AND ar.task_id=j.task_id
+		WHERE j.task_id=$1::uuid AND j.status IN ('PENDING','LEASED') AND ar.execution_status='RUNNING'
+		ORDER BY j.id FOR UPDATE OF j,ar`, taskID)
+	if err != nil {
+		return fmt.Errorf("capture active run targets for cancellation: %w", err)
+	}
+	activeRuns := make(map[string]string)
+	for runs.Next() {
+		var jobID, runID string
+		if err := runs.Scan(&jobID, &runID); err != nil {
+			runs.Close()
+			return fmt.Errorf("read active run targets for cancellation: %w", err)
+		}
+		if _, exists := activeRuns[jobID]; exists {
+			runs.Close()
+			return fmt.Errorf("multiple active runs for job %s", jobID)
+		}
+		activeRuns[jobID] = runID
+	}
+	if err := runs.Err(); err != nil {
+		runs.Close()
+		return fmt.Errorf("read active run targets for cancellation: %w", err)
+	}
+	runs.Close()
 	// RUNNING means the host admitted the run; this durable revoke is not proof
 	// that the supervisor process has been physically reaped.
 	if _, err := repos.Queries().Exec(ctx, `WITH revoked AS (
@@ -482,7 +509,15 @@ func cancelJobsLocked(ctx context.Context, repos *storage.Repositories, taskID s
 	}
 	rows.Close()
 	for _, jobID := range jobs {
-		if _, err := repos.Queries().Exec(ctx, `INSERT INTO outbox(task_id,job_id,kind,payload,created_at,next_attempt_at) VALUES($1::uuid,$2::uuid,'CANCEL',jsonb_build_object('job_id',$2::uuid),$3,$3)`, taskID, jobID, now); err != nil {
+		payload, err := json.Marshal(struct {
+			TaskID string `json:"task_id"`
+			JobID  string `json:"job_id"`
+			RunID  string `json:"run_id"`
+		}{TaskID: taskID, JobID: jobID, RunID: activeRuns[jobID]})
+		if err != nil {
+			return fmt.Errorf("encode cancellation target for job %s: %w", jobID, err)
+		}
+		if _, err := repos.Queries().Exec(ctx, `INSERT INTO outbox(task_id,job_id,kind,payload,created_at,next_attempt_at) VALUES($1::uuid,$2::uuid,'CANCEL',$3::jsonb,$4,$4)`, taskID, jobID, string(payload), now); err != nil {
 			return fmt.Errorf("persist cancellation outbox for job %s: %w", jobID, err)
 		}
 	}
