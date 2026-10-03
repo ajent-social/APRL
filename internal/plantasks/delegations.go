@@ -300,7 +300,7 @@ func (d *Delegations) persistIntent(ctx context.Context, callerID string, reques
 }
 
 func scanDelegation(ctx context.Context, tx pgx.Tx, callerID, delegationID string, forUpdate bool) (DelegationBinding, error) {
-	query := `SELECT request_bytes, request_digest, request_scope, status, COALESCE(authorization, 'null'::jsonb), COALESCE(lifecycle_id::text,''), COALESCE(lifecycle_revision,-1), observation_sequence, cancelled
+	query := `SELECT request_bytes, request_digest, request_scope, max_attempts, max_concurrent, expires_at_exact, status, COALESCE(authorization, 'null'::jsonb), COALESCE(lifecycle_id::text,''), COALESCE(lifecycle_revision,-1), observation_sequence, cancelled
 		FROM plan_delegations WHERE caller_id=$1 AND delegation_id=$2`
 	if forUpdate {
 		query += ` FOR UPDATE`
@@ -308,9 +308,12 @@ func scanDelegation(ctx context.Context, tx pgx.Tx, callerID, delegationID strin
 	var binding DelegationBinding
 	var rawAuthorization []byte
 	var storedScope []byte
+	var storedMaxAttempts int64
+	var storedMaxConcurrent int
+	var storedExpiry string
 	var lifeRevision int64
 	binding.CallerID, binding.DelegationID = callerID, delegationID
-	if err := tx.QueryRow(ctx, query, callerID, delegationID).Scan(&binding.RequestBytes, &binding.RequestDigest, &storedScope, &binding.Status, &rawAuthorization, &binding.LifecycleID, &lifeRevision, &binding.Sequence, &binding.Cancelled); err != nil {
+	if err := tx.QueryRow(ctx, query, callerID, delegationID).Scan(&binding.RequestBytes, &binding.RequestDigest, &storedScope, &storedMaxAttempts, &storedMaxConcurrent, &storedExpiry, &binding.Status, &rawAuthorization, &binding.LifecycleID, &lifeRevision, &binding.Sequence, &binding.Cancelled); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return DelegationBinding{}, fmt.Errorf("read delegation binding: %w", ErrNotFound)
 		}
@@ -325,8 +328,11 @@ func scanDelegation(ctx context.Context, tx pgx.Tx, callerID, delegationID strin
 		return DelegationBinding{}, fmt.Errorf("stored delegation request is invalid: %w", ErrDelegationConflict)
 	}
 	digest := sha256.Sum256(canonical)
-	if request.CallerID != callerID || request.DelegationID != delegationID || !bytes.Equal(canonical, binding.RequestBytes) || hex.EncodeToString(digest[:]) != binding.RequestDigest || binding.Sequence <= 0 {
-		return DelegationBinding{}, fmt.Errorf("stored delegation identity or digest mismatch: %w", ErrDelegationConflict)
+	scopedRequest, scopeErr := DecodeDeliveryV1Request(storedScope)
+	scopedCanonical, canonicalErr := EncodeDeliveryV1Request(scopedRequest)
+	expectedExpiry := request.Spec.Envelope.ExpiresAt.Format(time.RFC3339Nano)
+	if request.CallerID != callerID || request.DelegationID != delegationID || !bytes.Equal(canonical, binding.RequestBytes) || hex.EncodeToString(digest[:]) != binding.RequestDigest || binding.Sequence <= 0 || scopeErr != nil || canonicalErr != nil || !bytes.Equal(scopedCanonical, canonical) || storedMaxAttempts != int64(request.Spec.Envelope.MaxAttempts) || storedMaxConcurrent != request.Spec.Envelope.MaxConcurrent || storedExpiry != expectedExpiry {
+		return DelegationBinding{}, fmt.Errorf("stored delegation identity, scope, or digest mismatch: %w", ErrDelegationConflict)
 	}
 	binding.Request = request
 	if !bytes.Equal(rawAuthorization, []byte("null")) {
@@ -700,20 +706,30 @@ func (s *Store) delegationReady(ctx context.Context, lifecycleID string, state S
 	}
 	var callerID, delegationID string
 	var digest string
+	var requestBytes []byte
 	var lifeRevision, maxAttempts int64
 	var maxConcurrent int
 	var expiresRaw string
 	var status string
 	var cancelled bool
-	err := s.pool.QueryRow(ctx, `SELECT caller_id,delegation_id,request_digest,lifecycle_revision,max_attempts,max_concurrent,expires_at_exact,status,cancelled
-		FROM plan_delegations WHERE lifecycle_id=$1::uuid`, lifecycleID).Scan(&callerID, &delegationID, &digest, &lifeRevision, &maxAttempts, &maxConcurrent, &expiresRaw, &status, &cancelled)
+	err := s.pool.QueryRow(ctx, `SELECT caller_id,delegation_id,request_bytes,request_digest,lifecycle_revision,max_attempts,max_concurrent,expires_at_exact,status,cancelled
+		FROM plan_delegations WHERE lifecycle_id=$1::uuid`, lifecycleID).Scan(&callerID, &delegationID, &requestBytes, &digest, &lifeRevision, &maxAttempts, &maxConcurrent, &expiresRaw, &status, &cancelled)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return true, nil
 	}
 	if err != nil {
 		return false, fmt.Errorf("read delegation readiness: %w", ErrDelegationUnavailable)
 	}
-	if status != string(DelegationAdmitted) || cancelled || state.Cancelled || state.Lifecycle.ID != lifecycleID || lifeRevision != state.Revision || digest == "" {
+	request, decodeErr := DecodeDeliveryV1Request(requestBytes)
+	if decodeErr != nil {
+		return false, fmt.Errorf("decode delegation readiness scope: %w", ErrDelegationConflict)
+	}
+	canonicalRequest, encodeErr := EncodeDeliveryV1Request(request)
+	if encodeErr != nil {
+		return false, fmt.Errorf("encode delegation readiness scope: %w", ErrDelegationConflict)
+	}
+	requestHash := sha256.Sum256(canonicalRequest)
+	if request.CallerID != callerID || request.DelegationID != delegationID || status != string(DelegationAdmitted) || cancelled || state.Cancelled || state.Lifecycle.ID != lifecycleID || lifeRevision != state.Revision || hex.EncodeToString(requestHash[:]) != digest || maxAttempts != int64(request.Spec.Envelope.MaxAttempts) || maxConcurrent != request.Spec.Envelope.MaxConcurrent || expiresRaw != request.Spec.Envelope.ExpiresAt.Format(time.RFC3339Nano) {
 		return false, nil
 	}
 	expiresAt, err := time.Parse(time.RFC3339Nano, expiresRaw)
