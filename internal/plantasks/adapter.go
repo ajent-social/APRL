@@ -233,6 +233,10 @@ func (a *Adapter) ProviderSnapshot(ctx context.Context, lifecycleID string) (Pro
 	}
 	visible := make([]VisibleTask, 0, len(ids))
 	now := a.store.clock.Now().UTC()
+	delegatedReady, err := a.store.delegationReady(ctx, lifecycleID, state, now)
+	if err != nil {
+		return ProviderSnapshot{}, err
+	}
 	for _, id := range ids {
 		task := state.Tasks[id]
 		claimID, err := ClaimTaskID(id)
@@ -240,7 +244,7 @@ func (a *Adapter) ProviderSnapshot(ctx context.Context, lifecycleID string) (Pro
 			return ProviderSnapshot{}, err
 		}
 		item := VisibleTask{TaskID: id, ClaimID: claimID, Stage: task.Stage, Dependencies: append([]Dependency(nil), task.Dependencies...), FindingIDs: append([]string(nil), task.FindingIDs...),
-			Ready: state.Eligible(id, actor.ActorID, now) == nil, DeliveryStatus: deliveryStatus(state, id), ReviewOutcome: reviewOutcome(state, task)}
+			Ready: delegatedReady && state.Eligible(id, actor.ActorID, now) == nil, DeliveryStatus: deliveryStatus(state, id), ReviewOutcome: reviewOutcome(state, task)}
 		if task.PR != nil {
 			item.PRURL = task.PR.URL
 			item.HeadSHA = task.PR.HeadSHA

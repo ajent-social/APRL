@@ -138,6 +138,12 @@ func (s *Store) Update(ctx context.Context, lifecycleID string, expectedRevision
 	}
 	defer rollback(tx)
 
+	// Delegated mutations always lock the binding before the lifecycle.
+	binding, err := lockDelegationForLifecycle(ctx, tx, lifecycleID)
+	if err != nil {
+		return err
+	}
+
 	var revision int64
 	var payload []byte
 	err = tx.QueryRow(ctx, `SELECT revision, state FROM plan_lifecycles WHERE id=$1::uuid FOR UPDATE`, lifecycleID).Scan(&revision, &payload)
@@ -163,6 +169,10 @@ func (s *Store) Update(ctx context.Context, lifecycleID string, expectedRevision
 	originalPayload, err := json.Marshal(state)
 	if err != nil {
 		return err
+	}
+	var originalState State
+	if err := decodeState(originalPayload, &originalState); err != nil {
+		return fmt.Errorf("snapshot delegated lifecycle before transition: %w", err)
 	}
 	oldLifecycle := state.Lifecycle
 	oldStartedAt := state.StartedAt
@@ -205,6 +215,9 @@ func (s *Store) Update(ctx context.Context, lifecycleID string, expectedRevision
 	if err := preserveAdmissions(oldAttempts, state.Attempts, oldClaims, state.Claims, oldReceipts, state.Receipts, revision, s.clock.Now().UTC(), oldStartedAt, state.Lifecycle); err != nil {
 		return err
 	}
+	if err := fenceDelegationTransition(binding, originalState, state, s.clock.Now().UTC()); err != nil {
+		return err
+	}
 	if revision == math.MaxInt64 {
 		return fmt.Errorf("lifecycle revision exhausted: %w", ErrConflict)
 	}
@@ -225,6 +238,9 @@ func (s *Store) Update(ctx context.Context, lifecycleID string, expectedRevision
 	}
 	if tag.RowsAffected() != 1 {
 		return fmt.Errorf("persist lifecycle revision %d: %w", revision, ErrConflict)
+	}
+	if err := persistDelegationTransition(ctx, tx, binding, state); err != nil {
+		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit lifecycle transition: %w", err)
