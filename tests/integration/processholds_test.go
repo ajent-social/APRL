@@ -59,6 +59,9 @@ func TestUnresolvedProcessHoldBlocksReplacementUntilTrustedDrain(t *testing.T) {
 			if err != nil {
 				t.Fatalf("persist hold before start: %v", err)
 			}
+			if _, err := store.BeginStart(f.ctx, lease); err != nil {
+				t.Fatalf("persist launch intent: %v", err)
+			}
 			process := processholds.ProcessIdentity{PID: 42, PGID: 40, StartIdentity: "boot-1/process-start-42"}
 			if _, err := store.Started(f.ctx, hold.RunID, process); err != nil {
 				t.Fatalf("record host start identity: %v", err)
@@ -90,6 +93,45 @@ func TestUnresolvedProcessHoldBlocksReplacementUntilTrustedDrain(t *testing.T) {
 				t.Fatal("replacement reused old run identity")
 			}
 		})
+	}
+}
+
+func TestUnknownReasonCanBeRefinedWithoutReleasingOrReopeningHold(t *testing.T) {
+	f := leasesNewFixture(t, 1)
+	lease, err := leases.Claim(f.ctx, f.db.Pool, f.clock, leasesClaimRequest(f, f.jobs[0]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := processholds.NewStore(f.db.Pool, f.clock, processholds.Config{ResourceScope: "test-host-pool", MaxActive: 1, VerifierTimeout: time.Second}, processholdsFixtureVerifier{now: f.clock.Now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hold, err := store.Reserve(f.ctx, lease, "/private/workspaces/refine", "host-supervisor-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.BeginStart(f.ctx, lease); err != nil {
+		t.Fatal(err)
+	}
+	process := processholds.ProcessIdentity{PID: 91, PGID: 90, StartIdentity: "boot-refine/process-start-91"}
+	if _, err := store.Started(f.ctx, hold.RunID, process); err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.Get(f.ctx, hold.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := store.Unknown(f.ctx, hold.RunID, processholds.ReasonSupervisorLost)
+	if err != nil {
+		t.Fatalf("record later supervisor-loss observation: %v", err)
+	}
+	if updated.State != processholds.StateUnknown || updated.UnknownReason != processholds.ReasonSupervisorLost ||
+		updated.Revision != before.Revision+1 || updated.Process == nil || updated.Process.StartIdentity != process.StartIdentity {
+		t.Fatalf("refined hold=%+v, previous=%+v", updated, before)
+	}
+	replayed, err := store.Unknown(f.ctx, hold.RunID, processholds.ReasonSupervisorLost)
+	if err != nil || replayed.Revision != updated.Revision || replayed.State != processholds.StateUnknown {
+		t.Fatalf("same observation replay=(%+v,%v), want unchanged durable hold", replayed, err)
 	}
 }
 
@@ -149,11 +191,17 @@ func TestReserveReplayCannotReopenStartedUnknownOrReapedHold(t *testing.T) {
 			}
 			switch mode {
 			case "started":
+				if _, err := store.BeginStart(f.ctx, lease); err != nil {
+					t.Fatal(err)
+				}
 				process := processholds.ProcessIdentity{PID: 73, PGID: 70, StartIdentity: "boot-replay/process-start-73"}
 				if _, err := store.Started(f.ctx, hold.RunID, process); err != nil {
 					t.Fatal(err)
 				}
 			case "unknown":
+				if _, err := store.BeginStart(f.ctx, lease); err != nil {
+					t.Fatal(err)
+				}
 				process := processholds.ProcessIdentity{PID: 73, PGID: 70, StartIdentity: "boot-replay/process-start-73"}
 				if _, err := store.Started(f.ctx, hold.RunID, process); err != nil {
 					t.Fatal(err)
@@ -230,6 +278,37 @@ func TestBeginStartIsSingleDurableLaunchPermission(t *testing.T) {
 	}
 }
 
+func TestStartedCannotBypassDurableBeginStart(t *testing.T) {
+	f := leasesNewFixture(t, 1)
+	lease, err := leases.Claim(f.ctx, f.db.Pool, f.clock, leasesClaimRequest(f, f.jobs[0]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := processholds.NewStore(f.db.Pool, f.clock, processholds.Config{ResourceScope: "test-host-pool", MaxActive: 1, VerifierTimeout: time.Second}, processholdsFixtureVerifier{now: f.clock.Now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hold, err := store.Reserve(f.ctx, lease, "/private/workspaces/bypass", "host-supervisor-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	process := processholds.ProcessIdentity{PID: 96, PGID: 96, StartIdentity: "boot-bypass/process-start-96"}
+	if _, err := store.Started(f.ctx, hold.RunID, process); !errors.Is(err, processholds.ErrConflict) {
+		t.Fatalf("Started directly from RESERVED=%v, want conflict", err)
+	}
+	if _, err := f.db.Pool.Exec(f.ctx, `UPDATE process_holds SET state='STARTED',process_id=96,process_group_id=96,
+		process_start_identity='boot-bypass/process-start-96',revision=revision+1 WHERE run_id=$1::uuid`, hold.RunID); err == nil {
+		t.Fatal("database accepted RESERVED→STARTED without durable launch intent")
+	}
+	loaded, err := store.Get(f.ctx, hold.RunID)
+	if err != nil || loaded.State != processholds.StateReserved || loaded.Revision != hold.Revision {
+		t.Fatalf("bypass attempt changed durable hold=(%+v,%v)", loaded, err)
+	}
+	if unresolved, err := store.ListUnresolved(f.ctx); err != nil || len(unresolved) != 1 {
+		t.Fatalf("bypass attempt released capacity: holds=%+v err=%v", unresolved, err)
+	}
+}
+
 func TestBeginStartRejectsExpiredOrCancelledLease(t *testing.T) {
 	for _, mode := range []string{"expired", "cancelled"} {
 		t.Run(mode, func(t *testing.T) {
@@ -279,6 +358,9 @@ func TestLateProcessVerifierCannotReleaseHoldAfterDeadline(t *testing.T) {
 	hold, err := store.Reserve(f.ctx, lease, "/private/workspaces/late-proof", "host-supervisor-test")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if _, err := store.BeginStart(f.ctx, lease); err != nil {
+		t.Fatalf("persist late-proof launch intent: %v", err)
 	}
 	process := processholds.ProcessIdentity{PID: 88, PGID: 84, StartIdentity: "boot-late/process-start-88"}
 	if _, err := store.Started(f.ctx, hold.RunID, process); err != nil {
@@ -331,6 +413,9 @@ func TestControlPauseResumeKeepsUnknownProcessHoldFenced(t *testing.T) {
 	hold, err := store.Reserve(f.ctx, lease, "/private/workspaces/control", "host-supervisor-test")
 	if err != nil {
 		t.Fatalf("reserve before runner start: %v", err)
+	}
+	if _, err := store.BeginStart(f.ctx, lease); err != nil {
+		t.Fatalf("persist control run launch intent: %v", err)
 	}
 	process := processholds.ProcessIdentity{PID: 53, PGID: 51, StartIdentity: "boot-control/process-start-53"}
 	if _, err := store.Started(f.ctx, hold.RunID, process); err != nil {

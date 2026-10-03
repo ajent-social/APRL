@@ -68,6 +68,11 @@ func TestAdmissionAmbiguousProcessHoldRetainsCoverage(t *testing.T) {
 					if err != nil {
 						return err
 					}
+					if mode != "never_started" {
+						if _, err := holds.BeginStart(ctx, lease); err != nil {
+							return err
+						}
+					}
 					if mode == "group_drained" {
 						if _, err := holds.Started(ctx, hold.RunID, processholds.ProcessIdentity{PID: 42, PGID: 40, StartIdentity: "fixture-owned-start"}); err != nil {
 							return err
