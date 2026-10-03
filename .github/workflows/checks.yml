@@ -84,6 +84,32 @@ jobs:
           version: v2.14.0
           args: --timeout=5m ./...
 
+      - name: Install pinned read-only Codex CLI probe
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cli_root="$RUNNER_TEMP/aprl-codex-cli"
+          mkdir -p "$cli_root/download" "$cli_root/extracted" "$cli_root/bin"
+          asset_name='codex-x86_64-unknown-linux-musl.tar.gz'
+          asset_path="$cli_root/download/$asset_name"
+          gh release download rust-v0.160.0 \
+            --repo openai/codex \
+            --pattern "$asset_name" \
+            --dir "$cli_root/download"
+          printf '%s  %s\n' \
+            '306865417d4ee7a927785852910a527f41e1e159add390ac5ae3accb67d44a13' \
+            "$asset_path" | sha256sum --check --strict -
+          members="$(tar -tzf "$asset_path")"
+          if [[ "$members" != 'codex-x86_64-unknown-linux-musl' ]]; then
+            printf 'unexpected Codex CLI archive members: %s\n' "$members"
+            exit 1
+          fi
+          tar -xzf "$asset_path" -C "$cli_root/extracted" 'codex-x86_64-unknown-linux-musl'
+          install -m 0755 "$cli_root/extracted/codex-x86_64-unknown-linux-musl" "$cli_root/bin/codex"
+          printf '%s\n' "$cli_root/bin" >> "$GITHUB_PATH"
+
       - name: Run regular and race tests with event accounting
         shell: bash
         run: |
