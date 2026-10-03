@@ -1,8 +1,8 @@
 # APRL
 
-APRL is a Go control plane for a guarded author, reviewer, and fixer pull request lifecycle. PostgreSQL owns durable state and execution authority; Redis Streams transports delivery hints. See [the RFC](docs/rfc/rfc-0001.md) and [implementation plan](docs/plan.md).
+APRL is a Go code-change lifecycle service. It supports complete standalone author, independent review, bounded fix/re-review, and guarded merge workflows, and can also execute a lifecycle delegated by a product workflow controller. PostgreSQL owns APRL lifecycle state and execution authority; Redis Streams transports delivery hints. See [the RFC](docs/rfc/rfc-0001.md), [implementation plan](docs/plan.md), and [lifecycle integration contract](docs/contracts.md#whole-code-change-lifecycle-integration).
 
-Implementation is in progress. The foundation uses owned test services and injected test workers. Real paid execution and autonomous GitHub mutations remain unavailable until isolation, pricing, and runtime admission are proven. Production worker startup must fail closed when a supported adapter is unavailable.
+The durable control-plane foundation is present on the current main line; the complete lifecycle remains in progress. Existing accepted E1 task evidence covers bounded foundation slices only. Real paid execution and autonomous GitHub mutations remain unavailable until isolation, pricing, broker, supervisor, and runtime admission gates are satisfied. Production worker startup must fail closed when a supported adapter is unavailable. The exact external lifecycle wire schema is still pending architecture freeze; see the integration contract.
 
 ## Development
 

@@ -1,12 +1,12 @@
 # APRL Implementation Plan
 
-Change Summary: 2026 10 02 - T1.1-T1.12 and T1.14 locally accepted; 13/19 engineering tasks. Recovery preserved all source and owned test services. Completed-slice merge validation is active; next implementation wave is broker/supervisor on two Luna lanes. No production rollout is shipped.
+Change Summary: 2026 10 03 - Durable control-plane foundation PR1 is present on current main (commit 6feaf92); E1 remains incomplete. T1.1-T1.12 and T1.14 have accepted task evidence; T1.13 and T1.15-T1.19 remain pending. The complete standalone/delegated lifecycle integration contract is documented below; external wire schema remains pending architecture freeze. No live paid execution or production rollout is claimed.
 
 ## 1. Context
 
 Build APRL in Go, as a continuously available service that orchestrates separate author, reviewer, and fixer GitHub App identities. Webhooks feed a Postgres-authoritative state machine; Redis Streams delivers fenced jobs to ephemeral headless Codex workers. Routine PRs may merge only after current-snapshot CI/review and target policy pass. Human pause, bounded attempts, and enforceable budgets are product requirements.
 
-The repository currently contains LICENSE and the untracked revised RFC, with no application, manifests, tests, deployment, existing plan, or ADRs. The architecture graph reports zero communities. Preserve the user's RFC and author metadata. This assignment creates planning records only; it does not start services, register Apps, spend on inference, publish issues, or deploy.
+The repository has an accepted Go/Postgres/Redis durable control-plane foundation on current main, with implementation and task receipts under `internal/`, `docs/tasks/`, and `docs/contracts.md`. E1 broker policy, recovery, process supervision, assembled service roles, end-to-end foundation proof, and quality-gate handoff remain incomplete as tracked below. This plan preserves the existing RFC and historical task evidence; it does not claim live provider execution or production deployment.
 
 The user requires Go. Use standard-library net/http and flag, pgx/v5 for Postgres, and go-redis/v9 for Redis Streams. The RFC has been aligned to this Go/Redis Streams stack; the authoritative Postgres ownership and budget protocols are preserved. Pin dependency versions after the compatibility probe and pin the supported Go toolchain (local planning environment: Go 1.27.1). See [ADR 001](adr/001-service-runtime.md), [ADR 002](adr/002-durable-control-plane.md), and [ADR 003](adr/003-metered-execution.md). Budget bounds on real Codex/provider calls are unproven and block live paid agents, not fixture-based foundation work. No production host or credentials are supplied.
 
@@ -14,7 +14,7 @@ Success is measured by loss-free durable replay, stale-worker rejection, complet
 
 ## 2. Discovery Summary and Use Case Summary
 
-Ten planned use cases: seven P0 and three P1. None is wired and none has test coverage today. Catalog: `.claude/scratch/usecases-manifest.json`. All are derived from RFC-0001 because there is no reachable application code to inventory.
+Ten planned use cases: seven P0 and three P1. The durable foundation implements and tests bounded portions of these use cases; the complete standalone/delegated lifecycle and live runtime remain incomplete. Catalog: `.claude/scratch/usecases-manifest.json`. Use-case coverage must be read with the task acceptance and evidence below, not inferred from the lifecycle RFC alone.
 
 | ID | Priority | User outcome |
 | --- | --- | --- |
@@ -29,7 +29,7 @@ Ten planned use cases: seven P0 and three P1. None is wired and none has test co
 | UC-009 | PR labels/comments and structured logs | Inspect and act on an escalation |
 | UC-010 | GitHub push and review events | Preserve human branch changes and protected-target authority |
 
-Read-only discovery confirmed the critical seams: inbox/outbox commit boundaries, Postgres lease/generation ownership, current-head/base aggregate CI, pre-PR budget accounting, broker capabilities, pause/merge races, and successor-generation replies. Redis delivery is not ownership. Redis Streams consumer groups provide transport redelivery; Postgres owns delayed retries and scheduling. APRL service roles are implemented in Go. The Codex CLI help proves available output options, not financial bounds.
+Accepted foundation contracts cover inbox/outbox boundaries, Postgres lease/generation ownership, current-head/base aggregate CI, pre-PR budget accounting, pause/merge races, authenticated result acceptance, and successor-generation replies. Broker, remote-operation recovery, service assembly, and end-to-end acceptance remain pending. Redis delivery is not ownership: Redis Streams provides transport redelivery while Postgres owns lifecycle state and due-time scheduling. CLI output support does not prove financial bounds.
 
 ## 3. Scope and Deliverables
 
@@ -52,6 +52,14 @@ The initial service has three supervised roles: API, control, and worker. The co
 Queue contract: XADD carries a stable logical job UUID in its fields; Redis assigns an independent stream-entry ID. Duplicate stream entries are safe because Postgres deduplicates completed/owned logical work. XREADGROUP delivers, XACK follows durable completion/rejection, and XAUTOCLAIM restores abandoned pending delivery. Every reclaimed delivery must still obtain a valid Postgres lease. Delayed retries are due Postgres outbox rows, not an assumed Redis Streams scheduler. Do not trim unacknowledged entries; the durable reconciler rebuilds delivery after Redis loss.
 
 ## 4. Checkable Work Breakdown
+
+### Lifecycle operating contract
+
+APRL owns one canonical scheduler and eligibility/admission authority for each enrolled code-change lifecycle in both standalone and delegated modes. Standalone mode retains the full APRL lifecycle from authorized task through authoring, independent review, bounded fixes/re-reviews, and guarded merge. Delegated mode receives an approved lifecycle intent from a neutral product workflow controller; it uses APRL's same canonical child IDs, task state, readiness, scheduling, and stage routing. The controller retains its product graph and aggregate/product acceptance authority, but does not create a second scheduler for APRL stages. APRL's authoritative admission/result adapter governs an enrolled lifecycle. A developer claim is work pickup only and grants no runtime, provider, or GitHub mutation authority.
+
+Each author/fix task that changes code produces a PR and records PR URL plus exact head on its dependent review task, then completes at that handoff. Every code-changing PR has an executable independent review task, selected and claimed through the ordinary apply+claim loop. The reviewer checks the exact head and base; on approval, the review lane owns guarded merge and verifies landing. A blocking review creates explicit bounded fix and dependent re-review tasks. Review without a PR URL/head is not eligible. Review, fix, or PR-handoff completion alone never releases an ordinary downstream dependency: it becomes ready only after the required PR is reviewed, merged, and landing is verified. An explicitly speculative dependency may start earlier only with its speculative status and inputs recorded; it grants no release authority. There is no no-review exemption path.
+
+Shared plan/apply/claim representation, readiness, and stage routing remain generic and reusable. APRL's service-specific adapter supplies authoritative lifecycle admission/result facts. See [ADR 007](adr/007-whole-code-change-lifecycle.md) and [the integration contract](contracts.md#whole-code-change-lifecycle-integration). Exact external wire fields and schema version are pending architecture freeze and must be reconciled before publication or implementation.
 
 ### E1 - Durable control-plane foundation
 fidelity: executable
@@ -141,11 +149,21 @@ fidelity: outline
 Expand when the operator provides an owned production target and E2 live integration evidence. Add provisioning/supervision, TLS/webhook routing, secrets, DB backup/restore, retention, monitoring, escalation notification and phased enablement.
 Acceptance: Deploy to production and observe health, signed deliveries, recovery and control behavior live; approve Phase 2/3 separately after E3/E4 gates; document rollback as disabling autonomy without deleting audit data.
 - [ ] T5.0 PLAN: expand E5 after its trigger evidence  Owner: coordinator  Est: 60m  kind: plan  delivers: [E5 executable tasks, contracts, and updated use cases]  deps: [T2.0]  acc: [E5 is executable with resolved dependencies, owned file scopes and falsifiable acceptance for every row]  blocked-by: [T2.0]  blocked: Prior epic implementation exit evidence is not yet available; coordinator-only planning
+
+### E6 - Whole-lifecycle integration and executable review flow
+
+E6 integrates the complete lifecycle adapter with generic plan/apply/claim workflows while preserving standalone APRL operation. It does not assert live readiness. E6 implementation depends on E1 foundation handoff and the frozen external protocol. Exact wire schema is pending; do not implement guessed fields.
+
+- [ ] T6.0 PLAN: freeze whole-lifecycle integration contract  Owner: coordinator  Est: 60m  kind: plan  delivers: [versioned protocol, compatibility policy, lifecycle/readiness mapping, standalone and delegated acceptance]  deps: [T1.19]  acc: [Architecture-frozen schema and service-specific authoritative admission/result adapter are documented; no second scheduler is introduced; standalone flow remains complete]  blocked-by: [T1.19]  blocked: Exact external wire schema remains pending architecture lane
+- [ ] T6.1 Implement the lifecycle protocol adapter  Owner: coordinator  Est: 90m  kind: agent  verifies: [UC-001, UC-002, UC-003, UC-004, UC-008]  deps: [T6.0]  acc: [Approved lifecycle intent maps to APRL canonical child IDs/state/readiness; result and admission facts are authenticated, idempotent, fenced and reconciled; protocol version compatibility is explicit]  blocked-by: [T6.0]
+- [ ] T6.2 Route standalone and delegated lifecycles through one scheduler  Owner: coordinator  Est: 90m  kind: agent  verifies: [UC-001, UC-002, UC-003, UC-004]  deps: [T6.1]  acc: [Standalone author/review/fix/re-review/merge remains executable; delegated mode uses the same APRL scheduler; review is ordinary apply+claim work; blocking findings expand bounded fix/re-review children; reviewer verifies exact head/base, merges and verifies landing]  blocked-by: [T6.1]
+- [ ] T6.3 Integrate generic task tooling with lifecycle admission  Owner: shared-tooling maintainer + coordinator  Est: 90m  kind: agent  verifies: [infrastructure]  deps: [T6.1]  acc: [Generic plan/apply/claim task representation, readiness and stage routing remain reusable; ordinary descendants wait for verified landing; explicit speculative dependencies are recorded and confer no release authority; service adapter remains authoritative; no review exemption exists]  blocked-by: [T6.1]
+- [ ] T6.4 Independently review lifecycle integration changes  Owner: independent reviewer  Est: 60m  kind: agent  verifies: [infrastructure]  stage: review  deps: [T6.2, T6.3]  acc: [Review task is executable by normal apply+claim; records PR URL and exact head; reviewer is independent; blocker findings create bounded fix/re-review tasks; approval covers exact head/base; merge and verified landing are recorded]  blocked-by: [T6.2, T6.3]
 Trigger: Dependency planning-task completion alone never permits downstream coding; require the prior epic's implementation acceptance, substitute its resulting milestone task IDs, then groom this epic. E5 may start with review-only production while E3/E4 remain disabled.
 
 ## 5. Parallel Work and Waves
 
-The coordinator owns shared contracts, integration, plan/roadmap and ADR amendments. Use up to three GPT-6-Luna implementation workers plus one coordinator, matching this session's four slots. Each implementation worker requires its own unique external-SSD worktree and exact task file scope. Read-only planning probes do not own or edit files. Go skill conventions apply: context-first I/O, wrapped errors, no library panics, bounded goroutine lifetimes, consumer-defined interfaces and no fabricated success in production paths. Test doubles live only in _test.go or explicit testutil packages; unavailable runtime adapters fail closed. Model overrides for ambiguous contract/runtime decisions stay on the coordinator.
+The coordinator owns shared contracts, integration, plan/roadmap and ADR amendments. Use up to three GPT-6-Luna implementation workers plus one coordinator, matching this session's four slots. Each implementation worker requires its own unique external-SSD worktree and exact task file scope. Read-only planning probes do not own or edit files. Go skill conventions apply: context-first I/O, wrapped errors, no library panics, bounded goroutine lifetimes, consumer-defined interfaces and no fabricated success in production paths. Test doubles live only in _test.go or explicit testutil packages; unavailable runtime adapters fail closed. Model overrides for ambiguous contract/runtime decisions stay on the coordinator. This APRL-specific three-worker limit remains unchanged by this lifecycle documentation update.
 
 | Track | Tasks | Sync boundary |
 | --- | --- | --- |
@@ -287,9 +305,9 @@ The user requested merging completed work while E1 implementation continues. The
 
 - [x] S0.1 Verify accepted foundation slice  Owner: coordinator  stage: verify  deps: [T1.1, T1.2, T1.3, T1.4, T1.5, T1.6, T1.7, T1.8, T1.9, T1.10, T1.11, T1.12, T1.14]  acc: [Candidate build, actual-service suite, serialized race checks, formatting, vet and lint pass with no skipped tests]
 - [x] S0.2 Independently review merge candidate  Owner: coordinator  stage: review  deps: [S0.1]  acc: [Reviewed source revision recorded and blocking findings resolved]
-- [ ] S0.3 Rebase merge completed slice  Owner: coordinator  stage: merge  deps: [S0.2]  acc: [Current reviewed head and base match GitHub candidate; required checks/comments resolved; rebase merge and landed SHA recorded]
-- [ ] S0.4 Verify landed completed slice  Owner: coordinator  stage: verify-landed  deps: [S0.3]  acc: [Merged revision matches verified source tree and in-scope acceptance evidence remains valid]
+- [x] S0.3 Rebase merge completed slice  Owner: coordinator  stage: merge  deps: [S0.2]  acc: [Foundation PR1 is present on origin/main at 6feaf927897e2044717afa02c4a659b33f8fa42e; accepted candidate verification and review evidence remains in docs/verification.md; this does not complete E1]
+- [x] S0.4 Verify landed completed slice  Owner: coordinator  stage: verify-landed  deps: [S0.3]  acc: [The exact landed main commit is the foundation tree with accepted verification evidence; current main checkout resolves to that commit; E1 follow-on rows remain pending]
 
 - T1.14 results locally accepted after recovery: 17 race events, zero skips; three packages vet/lint, formatting and observer pass. Reviewer-controlled suppression of reply materialization failed the actual webhook/result race; exact restoration passes. Original snapshot includes integration identity and new pushed snapshot clears it. Old-generation cancelled job is not reauthorized by result receipt.
 
-- Completed-slice verification/review 2026 10 02: candidate b4255df has 136 regular and 136 race pass events, zero skips, build, vet, lint and formatting passing. Independent reviewers resolved one admission-retry blocker with a genuine-red emergency regression and verified all four retry/error cases. Broker/supervisor implement wave 8 concurrently; completed-slice rebase merge remains the coordinator's next delivery action.
+- Historical completed-slice verification/review 2026 10 02: candidate b4255df had 136 regular and 136 race pass events, zero skips, build, vet, lint and formatting passing. Independent reviewers resolved one admission-retry blocker with a genuine-red emergency regression and verified all four retry/error cases. The then-active broker/supervisor work and rebase-merge wording are historical; PR1 is now present on current main, while E1 remains incomplete.
