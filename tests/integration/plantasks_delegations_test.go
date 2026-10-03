@@ -492,7 +492,11 @@ func TestPlanDelegationMalformedAndCrossCallerRequestsCreateNoBinding(t *testing
 	if _, err := wrongCallerService.Submit(ctx, raw); !errors.Is(err, plantasks.ErrDelegationUnauthenticated) {
 		t.Fatalf("caller/body mismatch error = %v, want ErrDelegationUnauthenticated", err)
 	}
-	if _, err := wrongCallerService.Submit(ctx, []byte("{")); !errors.Is(err, plantasks.ErrDeliveryV1Malformed) {
+	ownerService, err := plantasks.NewDelegations(store, &plantasksDelegationAuthenticator{caller: request.CallerID}, policy, factory)
+	if err != nil {
+		t.Fatalf("construct owner service: %v", err)
+	}
+	if _, err := ownerService.Submit(ctx, []byte("{")); !errors.Is(err, plantasks.ErrDeliveryV1Malformed) {
 		t.Fatalf("malformed body error = %v, want ErrDeliveryV1Malformed", err)
 	}
 	intentCount, lifecycleCount, receiptCount := plantasksDelegationCounts(t, ctx, db.Pool, request.CallerID, request.DelegationID)
@@ -500,10 +504,6 @@ func TestPlanDelegationMalformedAndCrossCallerRequestsCreateNoBinding(t *testing
 		t.Fatalf("malformed or cross-caller request persisted binding/lifecycle/receipts=%d/%d/%d, want 0/0/0", intentCount, lifecycleCount, receiptCount)
 	}
 
-	ownerService, err := plantasks.NewDelegations(store, &plantasksDelegationAuthenticator{caller: request.CallerID}, policy, factory)
-	if err != nil {
-		t.Fatalf("construct owner service: %v", err)
-	}
 	if _, err := ownerService.Submit(ctx, raw); err != nil {
 		t.Fatalf("admit owner request: %v", err)
 	}
