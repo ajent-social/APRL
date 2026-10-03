@@ -676,3 +676,85 @@ func deliveryV1Observation(request DeliveryV1Request, requestDigest string) Deli
 		Accounting: DeliveryV1Accounting{}, Reason: "",
 	}
 }
+
+func TestDeliveryV1DottedURLSegmentsRequestRoundTrip(t *testing.T) {
+	request := deliveryV1Request(t)
+	request.Spec.Repository = "https://code.example.test/org.name/repo.name"
+	if err := request.Validate(); err != nil {
+		t.Fatalf("valid dotted repository rejected: %v", err)
+	}
+
+	encoded, err := EncodeDeliveryV1Request(request)
+	if err != nil {
+		t.Fatalf("encode dotted repository: %v", err)
+	}
+	decoded, err := DecodeDeliveryV1Request(encoded)
+	if err != nil {
+		t.Fatalf("decode dotted repository: %v", err)
+	}
+	if decoded.Spec.Repository != request.Spec.Repository {
+		t.Fatalf("repository round trip = %q, want %q", decoded.Spec.Repository, request.Spec.Repository)
+	}
+	digest, err := request.Digest()
+	if err != nil || !deliveryV1ValidDigest(digest) {
+		t.Fatalf("digest for dotted repository = %q, %v", digest, err)
+	}
+}
+
+func TestDeliveryV1DottedURLSegmentsObservationBinding(t *testing.T) {
+	request := deliveryV1Request(t)
+	request.Spec.Repository = "https://code.example.test/org.name/repo.name"
+	digest, err := request.Digest()
+	if err != nil {
+		t.Fatalf("request digest: %v", err)
+	}
+	pullURL := "https://code.example.test/org.name/repo.name/pull/12"
+	observation := deliveryV1Observation(request, digest)
+	observation.State = "landed"
+	observation.Children = []DeliveryV1ChildTask{{
+		ID: "review-1", Kind: "review", State: "completed",
+		DependsOn: []string{}, FindingIDs: []string{}, PRURL: pullURL,
+		HeadCommit: strings.Repeat("a", 40),
+	}}
+	observation.Landed = &DeliveryV1LandedReceipt{
+		Repository: request.Spec.Repository, TargetBranch: request.Spec.TargetBranch,
+		PRURL: pullURL, ReviewedHead: strings.Repeat("a", 40),
+		ReviewedBase: strings.Repeat("b", 40), PolicyRevision: request.Spec.PolicyRevision,
+		LandedCommit: strings.Repeat("c", 40), SourceDigest: strings.Repeat("d", 64),
+		Reviewer: "reviewer-1", Author: "author-1", Verifier: "host-verifier",
+		VerifiedAt: request.Spec.Envelope.ExpiresAt.Add(-time.Minute),
+	}
+	encoded, err := EncodeDeliveryV1Observation(observation, request)
+	if err != nil {
+		t.Fatalf("encode landed observation with dotted PR path: %v", err)
+	}
+	decoded, err := DecodeDeliveryV1Observation(encoded, request)
+	if err != nil {
+		t.Fatalf("decode landed observation with dotted PR path: %v", err)
+	}
+	if decoded.Landed == nil || decoded.Landed.PRURL != pullURL || decoded.Children[0].PRURL != pullURL {
+		t.Fatalf("dotted PR binding did not round trip: landed=%+v children=%+v", decoded.Landed, decoded.Children)
+	}
+
+	for _, invalidRepository := range []string{
+		"https://code.example.test/./repo.name",
+		"https://code.example.test/org.name/..",
+	} {
+		candidate := request
+		candidate.Spec.Repository = invalidRepository
+		if err := candidate.Validate(); !errors.Is(err, ErrDeliveryV1Invalid) {
+			t.Errorf("repository %q validation error = %v, want ErrDeliveryV1Invalid", invalidRepository, err)
+		}
+	}
+	for _, invalidPullURL := range []string{
+		"https://code.example.test/./repo.name/pull/12",
+		"https://code.example.test/org.name/../pull/12",
+	} {
+		candidate := observation
+		candidate.Children = append([]DeliveryV1ChildTask(nil), observation.Children...)
+		candidate.Children[0].PRURL = invalidPullURL
+		if err := candidate.Validate(request); !errors.Is(err, ErrDeliveryV1Invalid) {
+			t.Errorf("PR URL %q validation error = %v, want ErrDeliveryV1Invalid", invalidPullURL, err)
+		}
+	}
+}
