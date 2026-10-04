@@ -1,6 +1,8 @@
 package plantasks
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -155,6 +157,49 @@ func TestProjectPortableUsesCanonicalLifecycleWithoutInventingAuthoredChildren(t
 	}
 	if document["contractVersion"] != "0.0.1" {
 		t.Fatalf("portable contract version=%v, want 0.0.1", document["contractVersion"])
+	}
+}
+
+func TestProjectPortableCoreSourceIdentityBindsExactCallerBytes(t *testing.T) {
+	state := portableTestState(t)
+	firstInput := portableTestAuthoredSource(state)
+	first, err := ProjectPortable(state, firstInput)
+	if err != nil {
+		t.Fatalf("project original authored source bytes: %v", err)
+	}
+	secondInput := firstInput
+	secondInput.SourceBytes = append(append([]byte(nil), firstInput.SourceBytes...), []byte("\n<!-- source-only change -->\n")...)
+	second, err := ProjectPortable(state, secondInput)
+	if err != nil {
+		t.Fatalf("project altered authored source bytes: %v", err)
+	}
+	identity := func(input PortableAuthoredSource, bundle PortableBundle) string {
+		t.Helper()
+		sum := sha256.Sum256(input.SourceBytes)
+		digest := "sha256:" + hex.EncodeToString(sum[:])
+		wantRef := "urn:aprl:caller-source:" + digest
+		if bundle.Definition.Source.Ref != wantRef || bundle.Definition.Source.Revision != digest || bundle.Definition.Source.Digest != digest {
+			t.Fatalf("portable core source identity is not content-addressed: source=%+v want ref=%q revision/digest=%q", bundle.Definition.Source, wantRef, digest)
+		}
+		if bundle.Definition.Revision != digest || bundle.Definition.Digest != digest || bundle.Definition.Tasks[0].Source.Ref != wantRef {
+			t.Fatalf("portable plan/task identity does not bind exact source bytes: definition=%+v taskSource=%+v", bundle.Definition, bundle.Definition.Tasks[0].Source)
+		}
+		document := portableTestDocument(t, bundle)
+		definition := document["definition"].(map[string]any)
+		metadata := definition["metadata"].(map[string]any)["aprl"].(map[string]any)
+		caller := metadata["callerSource"].(map[string]any)
+		if caller["classification"] != "caller-supplied-unverified" || caller["claimedRef"] != input.SourceRef || caller["claimedRevision"] != input.SourceRevision || caller["digest"] != digest {
+			t.Fatalf("unverified caller claims were not retained separately from portable core identity: %#v", caller)
+		}
+		if metadata["lifecycleAuthorSourceRevision"] != state.Lifecycle.Authored.SourceRevision {
+			t.Fatalf("native lifecycle code provenance was lost or confused with caller source metadata: %#v", metadata)
+		}
+		return digest
+	}
+	firstDigest := identity(firstInput, first)
+	secondDigest := identity(secondInput, second)
+	if firstDigest == secondDigest || first.Definition.ID != second.Definition.ID {
+		t.Fatalf("altered exact bytes must change content identity while preserving native lifecycle identity: first=%q/%q second=%q/%q", first.Definition.ID, firstDigest, second.Definition.ID, secondDigest)
 	}
 }
 
@@ -356,6 +401,14 @@ func TestProjectPortableFailsClosedForMissingOrMismatchedAuthoredSource(t *testi
 		{name: "missing source bytes", change: func(source *PortableAuthoredSource) { source.SourceBytes = nil }, want: ErrPortableMissingAuthoredSource},
 		{name: "revision mismatch", change: func(source *PortableAuthoredSource) { source.SourceRevision = portableTestBaseSHA }, want: ErrPortableInvalidSource},
 		{name: "raw task not in source", change: func(source *PortableAuthoredSource) { source.TaskRaw = "a fabricated source row" }, want: ErrPortableInvalidSource},
+		{name: "localhost trailing dot", change: func(source *PortableAuthoredSource) { source.SourceRef = "https://localhost./plan.md" }, want: ErrPortableInvalidSource},
+		{name: "loopback IPv4 trailing dot", change: func(source *PortableAuthoredSource) { source.SourceRef = "https://127.0.0.1./plan.md" }, want: ErrPortableInvalidSource},
+		{name: "IPv6 zone identifier", change: func(source *PortableAuthoredSource) { source.SourceRef = "https://[fe80::1%25en0]/plan.md" }, want: ErrPortableInvalidSource},
+		{name: "multiple trailing dots", change: func(source *PortableAuthoredSource) { source.SourceRef = "https://example.com../plan.md" }, want: ErrPortableInvalidSource},
+		{name: "empty DNS label", change: func(source *PortableAuthoredSource) { source.SourceRef = "https://example..com/plan.md" }, want: ErrPortableInvalidSource},
+		{name: "abbreviated IPv4 loopback", change: func(source *PortableAuthoredSource) { source.SourceRef = "https://127.1/plan.md" }, want: ErrPortableInvalidSource},
+		{name: "integer IPv4 loopback", change: func(source *PortableAuthoredSource) { source.SourceRef = "https://2130706433/plan.md" }, want: ErrPortableInvalidSource},
+		{name: "hexadecimal IPv4 loopback", change: func(source *PortableAuthoredSource) { source.SourceRef = "https://0x7f000001/plan.md" }, want: ErrPortableInvalidSource},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
