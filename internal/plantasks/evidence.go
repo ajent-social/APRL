@@ -233,8 +233,8 @@ func validateLandedEvidenceShape(evidence LandedEvidence) error {
 		evidence.ReceiptID == "" || !validID(evidence.ReceiptID) || evidence.Revision < 0 || evidence.PRNumber <= 0 ||
 		evidence.MergeCommit == "" || r.Repository == "" || r.TargetBranch == "" || r.PRURL == "" ||
 		!deliveryV1ValidObjectID(r.ReviewedHead) || !deliveryV1ValidObjectID(r.ReviewedBase) ||
-		r.PolicyRevision == "" || !deliveryV1ObjectIDPattern.MatchString(r.LandedCommit) ||
-		!deliveryV1DigestPattern.MatchString(r.SourceDigest) || r.Reviewer == "" || r.Author == "" || r.Verifier == "" || r.VerifiedAt.IsZero() || verifiedOffset != 0 ||
+		!deliveryV1ValidText(r.PolicyRevision, deliveryV1MaxIDLength) || !deliveryV1ObjectIDPattern.MatchString(r.LandedCommit) ||
+		!deliveryV1DigestPattern.MatchString(r.SourceDigest) || !deliveryV1ValidText(r.Reviewer, deliveryV1MaxIDLength) || !deliveryV1ValidText(r.Author, deliveryV1MaxIDLength) || !deliveryV1ValidText(r.Verifier, deliveryV1MaxIDLength) || r.VerifiedAt.IsZero() || verifiedOffset != 0 ||
 		!deliveryV1ObjectIDPattern.MatchString(evidence.MergeCommit) || evidence.MergeCommit != r.LandedCommit {
 		return fmt.Errorf("malformed landed evidence: %w", ErrDeliveryV1Invalid)
 	}
