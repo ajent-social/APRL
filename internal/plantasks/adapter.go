@@ -197,7 +197,7 @@ func (a *Adapter) fetchLandingTransition(ctx context.Context, lifecycleID, claim
 	}
 	bounded, cancel := context.WithTimeout(ctx, landingOperationTimeout)
 	defer cancel()
-	state, err := a.store.Get(bounded, lifecycleID)
+	state, err := a.store.Load(bounded, lifecycleID)
 	if err != nil {
 		return nil, err
 	}
