@@ -1,0 +1,150 @@
+{
+  "contractVersion": "0.0.1",
+  "definition": {
+    "id": "aprl:lifecycle:11111111-1111-4111-8111-111111111111",
+    "revision": "sha256:c73b286b183de11085b83837f0fd676698ba6c84189d902030a6b06e2a8d9264",
+    "digest": "sha256:c73b286b183de11085b83837f0fd676698ba6c84189d902030a6b06e2a8d9264",
+    "title": "APRL portable adapter fixture",
+    "source": {
+      "authority": "native",
+      "authorityId": "aprl:caller-source",
+      "ref": "urn:aprl:caller-source:sha256:c73b286b183de11085b83837f0fd676698ba6c84189d902030a6b06e2a8d9264",
+      "revision": "sha256:c73b286b183de11085b83837f0fd676698ba6c84189d902030a6b06e2a8d9264",
+      "digest": "sha256:c73b286b183de11085b83837f0fd676698ba6c84189d902030a6b06e2a8d9264",
+      "adapterVersion": "aprl-native-lifecycle/0.1.0"
+    },
+    "tasks": [
+      {
+        "id": "aprl:delivery:11111111-1111-4111-8111-111111111111",
+        "title": "Portable parent task",
+        "stage": "author",
+        "authoredStatus": "pending",
+        "acceptance": "Preserve reviewed delivery authority",
+        "source": {
+          "ref": "urn:aprl:caller-source:sha256:c73b286b183de11085b83837f0fd676698ba6c84189d902030a6b06e2a8d9264",
+          "canonicalId": "aprl:lifecycle:11111111-1111-4111-8111-111111111111",
+          "raw": "- [ ] Portable parent task: Preserve reviewed delivery authority\n  stage: author"
+        },
+        "dependencies": [],
+        "metadata": {
+          "aprl": {
+            "deliveryGateId": "33333333-3333-4333-8333-333333333333",
+            "lifecycleId": "11111111-1111-4111-8111-111111111111"
+          }
+        },
+        "executionUnitId": "aprl:execution:11111111-1111-4111-8111-111111111111"
+      }
+    ],
+    "requirements": [],
+    "executionUnits": [
+      {
+        "id": "aprl:execution:11111111-1111-4111-8111-111111111111",
+        "authority": "aprl",
+        "canonicalId": "aprl:lifecycle:11111111-1111-4111-8111-111111111111",
+        "taskIds": [
+          "aprl:delivery:11111111-1111-4111-8111-111111111111"
+        ],
+        "stages": [
+          "author",
+          "review"
+        ]
+      }
+    ],
+    "metadata": {
+      "aprl": {
+        "lifecycleId": "11111111-1111-4111-8111-111111111111",
+        "lifecycleRevision": 0,
+        "nativeObservationDigest": "sha256:d81acf9a0d933ffe7a7503094e3fef60b70c27152fbb12f8d0e2e95f4e82b70f",
+        "deliveryGateId": "33333333-3333-4333-8333-333333333333",
+        "lifecycleAuthor": {
+          "actorId": "agent:author-a",
+          "actorKind": "agent",
+          "authoredAt": "2026-10-04T12:00:00Z",
+          "sourceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "lifecycleAuthorSourceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "portableContractDigest": "sha256:7582512f122d2f2a9c4461facc7541c9887053f137260d6ebe9c6dea611d039d",
+        "adapterVersion": "aprl-native-lifecycle/0.1.0",
+        "callerSource": {
+          "classification": "caller-supplied-unverified",
+          "claimedRef": "https://github.com/example/portable-project/blob/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/docs/plan.md",
+          "claimedRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "digest": "sha256:c73b286b183de11085b83837f0fd676698ba6c84189d902030a6b06e2a8d9264"
+        },
+        "repository": {
+          "owner": "example",
+          "name": "portable-project",
+          "target": "main"
+        },
+        "policyRevision": "policy:portable-test-v1",
+        "attempts": [],
+        "admissions": [],
+        "cancelled": false,
+        "escalated": false,
+        "children": [
+          {
+            "id": "22222222-2222-4222-8222-222222222222",
+            "stage": "author",
+            "correction": 0,
+            "dependencies": [],
+            "findingIds": [],
+            "authors": [
+              {
+                "actorId": "agent:author-a",
+                "actorKind": "agent",
+                "authoredAt": "2026-10-04T12:00:00Z",
+                "sourceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              {
+                "actorId": "agent:author-b",
+                "actorKind": "agent",
+                "authoredAt": "2026-10-04T12:00:00Z",
+                "sourceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            ]
+          },
+          {
+            "id": "33333333-3333-4333-8333-333333333333",
+            "stage": "review",
+            "correction": 0,
+            "dependencies": [
+              {
+                "taskId": "22222222-2222-4222-8222-222222222222",
+                "kind": "handoff"
+              }
+            ],
+            "findingIds": [],
+            "authors": []
+          }
+        ],
+        "receipts": [],
+        "lateLandingFacts": []
+      }
+    }
+  },
+  "snapshot": {
+    "planId": "aprl:lifecycle:11111111-1111-4111-8111-111111111111",
+    "planRevision": "sha256:c73b286b183de11085b83837f0fd676698ba6c84189d902030a6b06e2a8d9264",
+    "planDigest": "sha256:c73b286b183de11085b83837f0fd676698ba6c84189d902030a6b06e2a8d9264",
+    "observedAt": "2026-10-04T12:00:00Z",
+    "executions": [
+      {
+        "taskId": "aprl:delivery:11111111-1111-4111-8111-111111111111",
+        "attemptId": "aprl:lifecycle:11111111-1111-4111-8111-111111111111:attempt:1",
+        "state": "waiting",
+        "executionUnitId": "aprl:execution:11111111-1111-4111-8111-111111111111"
+      }
+    ],
+    "metadata": {
+      "aprl": {
+        "lifecycleId": "11111111-1111-4111-8111-111111111111",
+        "lifecycleRevision": 0,
+        "lifecycleStateDigest": "sha256:d81acf9a0d933ffe7a7503094e3fef60b70c27152fbb12f8d0e2e95f4e82b70f",
+        "observationTimeSource": "lifecycle_started_at_fallback"
+      }
+    },
+    "subject": {}
+  },
+  "evidence": [],
+  "evaluations": []
+}

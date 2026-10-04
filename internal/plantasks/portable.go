@@ -774,6 +774,11 @@ func portableSafeSourceRef(reference string) bool {
 		}
 		return true
 	case "":
+		// Escaped relative references have resolver-dependent path semantics.
+		// Keep this bounded mapper to literal repository-relative paths.
+		if strings.Contains(reference, "%") {
+			return false
+		}
 		if parsed.IsAbs() || parsed.RawQuery != "" || parsed.Fragment != "" || strings.HasPrefix(reference, "~") || strings.HasPrefix(reference, "/") || strings.Contains(reference, ":") {
 			return false
 		}
