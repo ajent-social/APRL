@@ -6,6 +6,7 @@ package resultclient
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -79,12 +80,23 @@ func New(endpoint string, client *http.Client, tokens TokenSource) (*Client, err
 	if err := validateTLSConfig(transport); err != nil {
 		return nil, fmt.Errorf("construct result client: %w", err)
 	}
-	trustedTransport := transport.Clone()
 	trustedTLSConfig := transport.TLSClientConfig.Clone()
 	if trustedTLSConfig.RootCAs != nil {
 		trustedTLSConfig.RootCAs = trustedTLSConfig.RootCAs.Clone()
 	}
-	trustedTransport.TLSClientConfig = trustedTLSConfig
+	if trustedTLSConfig.MinVersion == 0 {
+		trustedTLSConfig.MinVersion = tls.VersionTLS12
+	}
+	// Build a standard TLS transport instead of inheriting caller dial hooks,
+	// proxy callbacks or alternate protocol handlers that could bypass TLS.
+	trustedTransport := &http.Transport{
+		TLSClientConfig:       trustedTLSConfig,
+		TLSHandshakeTimeout:   maxRequestTimeout,
+		ResponseHeaderTimeout: maxRequestTimeout,
+		IdleConnTimeout:       time.Minute,
+		MaxIdleConnsPerHost:   2,
+		MaxConnsPerHost:       8,
+	}
 	trustedClient := *client
 	trustedClient.Transport = trustedTransport
 	trustedClient.Jar = nil
@@ -99,7 +111,10 @@ func New(endpoint string, client *http.Client, tokens TokenSource) (*Client, err
 
 func validateTLSConfig(transport *http.Transport) error {
 	config := transport.TLSClientConfig
-	if config == nil || config.InsecureSkipVerify || transport.DialTLS != nil || transport.DialTLSContext != nil || transport.TLSNextProto != nil {
+	if config == nil || config.InsecureSkipVerify ||
+		(config.MinVersion != 0 && config.MinVersion < tls.VersionTLS12) ||
+		(config.MaxVersion != 0 && config.MaxVersion < tls.VersionTLS12) ||
+		transport.DialTLSContext != nil || transport.TLSNextProto != nil {
 		return ErrProtocol
 	}
 	// A nil RootCAs intentionally means the platform trust store. A non-nil pool
@@ -222,8 +237,9 @@ func validBearerToken(token string) bool {
 			padding = true
 			continue
 		}
-		if padding || !((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') ||
-			ch == '-' || ch == '.' || ch == '_' || ch == '~' || ch == '+' || ch == '/') {
+		alphaNumeric := (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')
+		symbol := strings.ContainsRune("-._~+/", ch)
+		if padding || (!alphaNumeric && !symbol) {
 			return false
 		}
 	}
