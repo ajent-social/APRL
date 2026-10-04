@@ -187,23 +187,34 @@ type PortableEvidence struct{}
 type PortableEvaluation struct{}
 
 type portableAPRLExtension struct {
-	LifecycleID          string                    `json:"lifecycleId"`
-	LifecycleRevision    int64                     `json:"lifecycleRevision"`
-	LifecycleStateDigest string                    `json:"lifecycleStateDigest"`
-	DeliveryGateID       string                    `json:"deliveryGateId"`
-	LifecycleAuthor      portableContributor       `json:"lifecycleAuthor"`
-	ContractDigest       string                    `json:"portableContractDigest"`
-	AdapterVersion       string                    `json:"adapterVersion"`
-	Repository           portableRepository        `json:"repository"`
-	PolicyRevision       string                    `json:"policyRevision"`
-	CurrentPR            *portablePullRequest      `json:"currentPullRequest,omitempty"`
-	Attempts             []portableTaskAttempt     `json:"attempts"`
-	Admissions           []portableAdmission       `json:"admissions"`
-	Cancelled            bool                      `json:"cancelled"`
-	Escalated            bool                      `json:"escalated"`
-	Children             []portableNativeTask      `json:"children"`
-	Receipts             []portableNativeReceipt   `json:"receipts"`
-	LateLandingFacts     []portableLateLandingFact `json:"lateLandingFacts"`
+	LifecycleID                   string                    `json:"lifecycleId"`
+	LifecycleRevision             int64                     `json:"lifecycleRevision"`
+	LifecycleStateDigest          string                    `json:"lifecycleStateDigest"`
+	DeliveryGateID                string                    `json:"deliveryGateId"`
+	LifecycleAuthor               portableContributor       `json:"lifecycleAuthor"`
+	LifecycleAuthorSourceRevision string                    `json:"lifecycleAuthorSourceRevision"`
+	ContractDigest                string                    `json:"portableContractDigest"`
+	AdapterVersion                string                    `json:"adapterVersion"`
+	CallerSource                  portableCallerSource      `json:"callerSource"`
+	Repository                    portableRepository        `json:"repository"`
+	PolicyRevision                string                    `json:"policyRevision"`
+	CurrentPR                     *portablePullRequest      `json:"currentPullRequest,omitempty"`
+	Attempts                      []portableTaskAttempt     `json:"attempts"`
+	Admissions                    []portableAdmission       `json:"admissions"`
+	Cancelled                     bool                      `json:"cancelled"`
+	Escalated                     bool                      `json:"escalated"`
+	Children                      []portableNativeTask      `json:"children"`
+	Receipts                      []portableNativeReceipt   `json:"receipts"`
+	LateLandingFacts              []portableLateLandingFact `json:"lateLandingFacts"`
+}
+
+// portableCallerSource retains caller assertions without treating them as
+// repository provenance or resolving them against a host checkout.
+type portableCallerSource struct {
+	Classification  string `json:"classification"`
+	ClaimedRef      string `json:"claimedRef"`
+	ClaimedRevision string `json:"claimedRevision"`
+	Digest          string `json:"digest"`
 }
 
 type portableRepository struct {
@@ -310,6 +321,7 @@ func ProjectPortable(state State, authored PortableAuthoredSource) (PortableBund
 		return PortableBundle{}, err
 	}
 	sourceDigest := portableDigest(authored.SourceBytes)
+	sourceRef := portableCallerSourceRef(sourceDigest)
 	planID := portableLifecycleID(state.Lifecycle.ID)
 	canonicalID := portableCanonicalLifecycleID(state.Lifecycle.ID)
 	taskID := portableTaskID(state.Lifecycle.ID)
@@ -329,7 +341,9 @@ func ProjectPortable(state State, authored PortableAuthoredSource) (PortableBund
 	metadata := portableAPRLExtension{
 		LifecycleID: state.Lifecycle.ID, LifecycleRevision: state.Revision,
 		LifecycleStateDigest: stateDigest, DeliveryGateID: state.Lifecycle.DeliveryGateID,
-		LifecycleAuthor: portableContributorFrom(state.Lifecycle.Authored), ContractDigest: PortableContractDigest, AdapterVersion: PortableAdapterVersion,
+		LifecycleAuthor: portableContributorFrom(state.Lifecycle.Authored), LifecycleAuthorSourceRevision: state.Lifecycle.Authored.SourceRevision,
+		ContractDigest: PortableContractDigest, AdapterVersion: PortableAdapterVersion,
+		CallerSource:   portableCallerSource{Classification: "caller-supplied-unverified", ClaimedRef: authored.SourceRef, ClaimedRevision: authored.SourceRevision, Digest: sourceDigest},
 		Repository:     portableRepository{Owner: state.Lifecycle.Repository.Owner, Name: state.Lifecycle.Repository.Name, Target: state.Lifecycle.Repository.Target},
 		PolicyRevision: state.Lifecycle.PolicyRevision,
 		Cancelled:      state.Cancelled, Escalated: state.EscalationReason != "",
@@ -344,13 +358,13 @@ func ProjectPortable(state State, authored PortableAuthoredSource) (PortableBund
 	unit := PortableExecutionUnit{ID: unitID, Authority: portableAuthority, CanonicalID: canonicalID, TaskIDs: []string{taskID}, Stages: stages}
 	task := PortableTask{
 		ID: taskID, Title: authored.TaskTitle, Stage: authored.Stage, AuthoredStatus: authored.AuthoredStatus,
-		Acceptance: authored.Acceptance, Source: PortableTaskSource{Ref: authored.SourceRef, CanonicalID: canonicalID, Raw: authored.TaskRaw},
+		Acceptance: authored.Acceptance, Source: PortableTaskSource{Ref: sourceRef, CanonicalID: canonicalID, Raw: authored.TaskRaw},
 		Dependencies: []PortableDependency{}, Metadata: map[string]any{"aprl": map[string]any{"lifecycleId": state.Lifecycle.ID, "deliveryGateId": state.Lifecycle.DeliveryGateID}},
 		ExecutionUnitID: unitID,
 	}
 	definition := PortablePlanDefinition{
-		ID: planID, Revision: authored.SourceRevision, Digest: sourceDigest, Title: authored.PlanTitle,
-		Source: PortableSource{Authority: "native", AuthorityID: portableAuthority, Ref: authored.SourceRef, Revision: authored.SourceRevision, Digest: sourceDigest, AdapterVersion: PortableAdapterVersion},
+		ID: planID, Revision: sourceDigest, Digest: sourceDigest, Title: authored.PlanTitle,
+		Source: PortableSource{Authority: "native", AuthorityID: "aprl:caller-source", Ref: sourceRef, Revision: sourceDigest, Digest: sourceDigest, AdapterVersion: PortableAdapterVersion},
 		Tasks:  []PortableTask{task}, Requirements: []PortableRequirement{}, ExecutionUnits: []PortableExecutionUnit{unit}, Metadata: aprlMetadata,
 	}
 	observedAt := portableObservedAt(state)
@@ -625,6 +639,10 @@ func portableDigest(value []byte) string {
 	return "sha256:" + hex.EncodeToString(digest[:])
 }
 
+func portableCallerSourceRef(digest string) string {
+	return "urn:aprl:caller-source:" + digest
+}
+
 func portableLifecycleID(id string) string          { return "aprl:lifecycle:" + id }
 func portableCanonicalLifecycleID(id string) string { return "aprl:lifecycle:" + id }
 func portableTaskID(id string) string               { return "aprl:delivery:" + id }
@@ -678,11 +696,32 @@ func portableSafeSourceRef(reference string) bool {
 			return false
 		}
 		host := strings.ToLower(parsed.Hostname())
+		if strings.Contains(host, "%") {
+			return false
+		}
+		// A single trailing dot is the DNS absolute-name spelling of the same
+		// host. Normalize it before local-name and IP checks; multiple trailing
+		// dots, empty labels, and numeric shorthand hosts remain ambiguous.
+		host = strings.TrimSuffix(host, ".")
+		if host == "" || strings.HasSuffix(host, ".") {
+			return false
+		}
 		if host == "localhost" || strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".localhost") || strings.HasSuffix(host, ".internal") || strings.HasSuffix(host, ".lan") || strings.HasSuffix(host, ".home.arpa") || strings.HasSuffix(host, ".test") {
 			return false
 		}
 		if ip := net.ParseIP(host); ip != nil && (ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsUnspecified()) {
 			return false
+		}
+		if net.ParseIP(host) == nil {
+			labels := strings.Split(host, ".")
+			if len(labels) < 2 || portableNumericHostLabel(labels[len(labels)-1]) {
+				return false
+			}
+			for _, label := range labels {
+				if label == "" {
+					return false
+				}
+			}
 		}
 		return true
 	case "":
@@ -694,6 +733,39 @@ func portableSafeSourceRef(reference string) bool {
 	default:
 		return false
 	}
+}
+
+func portableNumericHostLabel(label string) bool {
+	if label == "" {
+		return false
+	}
+	allDecimal := true
+	for _, r := range label {
+		if r < '0' || r > '9' {
+			allDecimal = false
+			break
+		}
+	}
+	if allDecimal {
+		return true
+	}
+	if len(label) > 2 && strings.HasPrefix(label, "0x") {
+		for _, r := range label[2:] {
+			if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
+				return false
+			}
+		}
+		return true
+	}
+	if len(label) > 1 && label[0] == '0' {
+		for _, r := range label[1:] {
+			if r < '0' || r > '7' {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func uniquePortableStrings(values []string) []string {
