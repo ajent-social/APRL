@@ -374,8 +374,8 @@ func TestPlanTaskLandingEvidenceCommitsTypedProofAndProjectsStableSnapshot(t *te
 	if _, err := projector.Project(f.ctx, staleBinding); err == nil {
 		t.Fatal("projector upgraded a stale caller binding to the current observation")
 	}
-	if len(first.Children) != 3 {
-		t.Fatalf("correction projection has %d children, want original author, stable review gate, and one fix; %+v", len(first.Children), first.Children)
+	if len(first.Children) != 4 {
+		t.Fatalf("correction projection has %d children, want actual author, review, fix, and re-review tasks without a synthetic delivery row; %+v", len(first.Children), first.Children)
 	}
 	f.manual.Advance(2 * time.Hour)
 	second, err := projector.Project(f.ctx, binding)
@@ -548,6 +548,25 @@ func TestPlanTaskLateLandingFactAfterCancellationOrExpiryDoesNotRelease(t *testi
 			}
 			if after.Cancelled != canceled || !reflect.DeepEqual(before.Tasks, after.Tasks) || !reflect.DeepEqual(before.Claims, after.Claims) || !reflect.DeepEqual(before.Receipts, after.Receipts) {
 				t.Fatal("late landing fact changed cancellation, tasks, claims, or normal receipt history")
+			}
+			bindingForProjection, err := f.delegates.Get(f.ctx, f.request.DelegationID)
+			if err != nil {
+				t.Fatalf("read binding for late-fact projection: %v", err)
+			}
+			projector, err := plantasks.NewDeliveryV1Projector(f.store)
+			if err != nil {
+				t.Fatalf("construct late-fact projector: %v", err)
+			}
+			observation, err := projector.Project(f.ctx, bindingForProjection)
+			if err != nil {
+				t.Fatalf("project late landing audit: %v", err)
+			}
+			wantStatus, wantReason := "canceled", ""
+			if mode == "expired" {
+				wantStatus, wantReason = "unknown", "scope_expired"
+			}
+			if observation.State != wantStatus || observation.Reason != wantReason || observation.Landed != nil || observation.Accounting.SpentCents != 0 || observation.Accounting.ReservedCents != 0 || observation.Accounting.UnknownCents != 0 || observation.Accounting.SettlementID != "" {
+				t.Fatalf("late audit changed workflow or accounting authority: %+v", observation)
 			}
 			fact, ok := after.LateLandedFacts[receipt.ID]
 			if !ok || fact.ID != receipt.ID || fact.HostActor != f.hostAuth.actor || fact.Receipt.LandedEvidence == nil ||
