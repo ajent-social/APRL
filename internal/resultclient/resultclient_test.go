@@ -224,9 +224,14 @@ func TestSubmitUnknownNetworkOutcomeAndCancellation(t *testing.T) {
 
 	t.Run("cancel in flight", func(t *testing.T) {
 		entered := make(chan struct{})
+		release := make(chan struct{})
+		defer close(release)
 		server := httptest.NewTLSServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 			close(entered)
-			<-r.Context().Done()
+			select {
+			case <-r.Context().Done():
+			case <-release:
+			}
 		}))
 		t.Cleanup(server.Close)
 		client, err := New(server.URL+resultsPath, trustedTestHTTPClient(t, server), &staticTokenSource{token: testToken})
@@ -234,13 +239,18 @@ func TestSubmitUnknownNetworkOutcomeAndCancellation(t *testing.T) {
 			t.Fatalf("New: %v", err)
 		}
 		t.Cleanup(client.CloseIdleConnections)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
 		done := make(chan error, 1)
 		go func() {
 			_, submitErr := client.Submit(ctx, validTestPrincipal(), validTestResult())
 			done <- submitErr
 		}()
-		<-entered
+		select {
+		case <-entered:
+		case <-time.After(2 * time.Second):
+			t.Fatal("Submit did not reach TLS handler")
+		}
 		cancel()
 		select {
 		case err := <-done:
