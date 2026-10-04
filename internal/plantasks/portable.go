@@ -805,7 +805,7 @@ func portableNumericHostLabel(label string) bool {
 	}
 	if len(label) > 2 && strings.HasPrefix(label, "0x") {
 		for _, r := range label[2:] {
-			if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
+			if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
 				return false
 			}
 		}
