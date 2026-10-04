@@ -90,6 +90,7 @@ func TestHostResultTransport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(client.CloseIdleConnections)
 
 	post := func(t *testing.T, token string, value contracts.Result) int {
 		t.Helper()
