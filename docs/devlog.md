@@ -51,3 +51,7 @@ Read-only review found an early retry or undisposed malformed hint stopped the w
 ### 2026 10 01 — Supervisor process evidence seam
 
 Read-only supervisor planning found no durable process/heartbeat/deadline/workspace evidence. A focused migration regression failed before adding optional complete registration fields, immutable process identity and monotonic heartbeat guards to the unreleased schema. All 24 migration/lease race cases passed with zero skips; affected storage/migration/test vet and lint passed. Actual process launch and owned group cleanup remain T1.16, with OCI/provider proof deferred to E2.
+
+## 2026 10 04 — Full SDLC execution preflight
+
+Reconciled main d97a89d and successful hosted CI37192937020. T9.1 records known deployment inputs/blocks without admitting AWS spend. E1/E6/E7/E8 historical source and fixture receipts are delivered; CLI production factories remain intentionally unavailable. T2.0 expands a credential-free first E2 horizon: run-scoped host result authentication plus bounded HTTPS submission. Local load above 10 holds local compiler/testing; coordinator verification uses the existing hosted Linux CI, never bypassing local lease rules. Default AWS identity is accessible but chosen account/region/cost and model/App credentials await operator inputs. DNS currently NXDOMAIN with Cloudflare authority; configured Cloudflare operation tools are absent. No production resource or model request made.
