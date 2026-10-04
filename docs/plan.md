@@ -638,5 +638,5 @@ E9 scheduling: one coordinator executes T9.1; T9.2 expands the reachable product
 
 #### Wave 41: Review F1 correction (1 coordinator)
 - [x] T2.5.F1 Scheduling reference; correct UUID normalization.
-- [ ] T2.5.F1.V Scheduling reference; verify corrected candidate.
+- [ ] T2.10 Scheduling reference; verify corrected candidate.
 - [ ] T2.5.F1.R Scheduling reference; independent exact-head re-review.
