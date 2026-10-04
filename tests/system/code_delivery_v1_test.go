@@ -656,10 +656,16 @@ func codeDeliveryV1PoolTask(t *testing.T, snapshot deliveryV1ShimSnapshot, claim
 
 func codeDeliveryV1DifferentSHA(original string, fill byte) string {
 	candidate := strings.Repeat(string(fill), len(original))
-	if candidate == original {
-		return strings.Repeat("e", len(original))
+	if candidate != original {
+		return candidate
 	}
-	return candidate
+	for _, alternate := range "0123456789abcdef" {
+		candidate = strings.Repeat(string(alternate), len(original))
+		if candidate != original {
+			return candidate
+		}
+	}
+	panic("no distinct hexadecimal SHA fixture")
 }
 
 func codeDeliveryV1RequireProviderDenial(t *testing.T, shim *deliveryV1Shim, previousCalls int64, response map[string]any, callErr error) {
