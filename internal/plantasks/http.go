@@ -22,20 +22,25 @@ var ErrInvalidDeliveryV1HTTPHandler = errors.New("invalid code-delivery/v1 HTTP 
 // Implementations must honor ctx cancellation and deadlines; the handler passes
 // a finite context but cannot safely terminate a dependency that ignores it.
 type DeliveryV1BearerAuthenticator interface {
+	// Authenticate resolves token to its trusted opaque caller ID.
 	Authenticate(context.Context, string) (string, error)
 }
 
 // DeliveryV1LifecycleService is the caller-scoped durable delegation boundary.
 // Implementations must honor ctx cancellation and deadlines.
 type DeliveryV1LifecycleService interface {
+	// Submit creates or replays the caller-scoped durable intent.
 	Submit(context.Context, []byte) (DelegationBinding, error)
+	// Get returns only the caller-scoped binding.
 	Get(context.Context, string) (DelegationBinding, error)
+	// Cancel cancels only the caller-scoped binding.
 	Cancel(context.Context, string) (DelegationBinding, error)
 }
 
 // DeliveryV1ObservationProjector projects only authoritative lifecycle facts.
 // Implementations must honor ctx cancellation and deadlines.
 type DeliveryV1ObservationProjector interface {
+	// Project returns a validated wire observation from authoritative lifecycle facts.
 	Project(context.Context, DelegationBinding) (DeliveryV1Observation, error)
 }
 
@@ -45,6 +50,7 @@ type DeliveryV1HTTPCallerAuthenticator struct{}
 
 type deliveryV1HTTPCallerContextKey struct{}
 
+// AuthenticatedCaller returns only the trusted caller stored by the handler.
 func (DeliveryV1HTTPCallerAuthenticator) AuthenticatedCaller(ctx context.Context) (string, error) {
 	if ctx == nil {
 		return "", ErrDelegationUnauthenticated
