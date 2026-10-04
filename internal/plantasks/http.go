@@ -19,11 +19,14 @@ const deliveryV1HTTPTimeout = 10 * time.Second
 var ErrInvalidDeliveryV1HTTPHandler = errors.New("invalid code-delivery/v1 HTTP handler")
 
 // DeliveryV1BearerAuthenticator resolves a bearer token to a trusted opaque caller ID.
+// Implementations must honor ctx cancellation and deadlines; the handler passes
+// a finite context but cannot safely terminate a dependency that ignores it.
 type DeliveryV1BearerAuthenticator interface {
 	Authenticate(context.Context, string) (string, error)
 }
 
 // DeliveryV1LifecycleService is the caller-scoped durable delegation boundary.
+// Implementations must honor ctx cancellation and deadlines.
 type DeliveryV1LifecycleService interface {
 	Submit(context.Context, []byte) (DelegationBinding, error)
 	Get(context.Context, string) (DelegationBinding, error)
@@ -31,6 +34,7 @@ type DeliveryV1LifecycleService interface {
 }
 
 // DeliveryV1ObservationProjector projects only authoritative lifecycle facts.
+// Implementations must honor ctx cancellation and deadlines.
 type DeliveryV1ObservationProjector interface {
 	Project(context.Context, DelegationBinding) (DeliveryV1Observation, error)
 }
