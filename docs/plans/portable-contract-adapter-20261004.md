@@ -22,3 +22,9 @@ Portable consumers cannot claim/dispatch canonical children or treat execution-c
 ## Ownership and verification
 
 Coordinator owns contracts/integration/docs and compiler invocation. Workers receive isolated external-SSD worktrees and explicit files. No foreign build lease or lifecycle claim is released. Source CI can qualify remote tests while local high load holds Go. Corrected upstream validator and independent exact-head review are mandatory merge dependencies.
+
+## Preflight receipts
+
+Fresh remote main is 27ee4b8; isolated branch has a clean source baseline and preserves the original dirty authored checkout. External volume has 645 GiB available and worktree creation proved writability. Existing source main CI37177262630 passed; no new candidate check is inferred. GitHub main has no protected-branch policy (API404), so this delivery explicitly requires source CI and independent exact-head review before guarded rebase merge.
+
+Pinned manifest verification checked all66 unique files and aggregate7582512f against owner source16b66e5. Corrected preliminary Wazi CLI downloaded from CI37184831031 has binary SHA256 f26d7731a0b4f9662dedb7d007ee375236c7dc8f7f3cff9393cf9d0aab59695e. Version reports0.0.1/digest7582512f/authorityAuthenticated=false; all60 catalog cases pass (21valid,39invalid). Final owner landing/re-review handoff remains outstanding; APRL generated examples have not yet been tested. Local Go is held by load>10, not failed.
