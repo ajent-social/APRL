@@ -51,6 +51,7 @@ type deliveryV1Shim struct {
 	registry        string
 	remote          string
 	checkout        string
+	redactions      []string
 	claims          map[string]deliveryV1ShimClaim
 	providerCalls   atomic.Int64
 	providerErrorMu sync.RWMutex
@@ -180,7 +181,8 @@ except Exception:
 	s = &deliveryV1Shim{
 		fixture: f, shimPath: shimPath, claimPath: claimPath, registry: registryPath,
 		remote: remote, checkout: checkout,
-		claims: make(map[string]deliveryV1ShimClaim),
+		redactions: []string{root, checkout, remote, registryPath, shimPath, claimPath, pythonPath, relayPath, caPath, bridge.URL, bridgeToken},
+		claims:     make(map[string]deliveryV1ShimClaim),
 	}
 	t.Cleanup(func() {
 		for _, claim := range s.claims {
@@ -282,7 +284,11 @@ func (s *deliveryV1Shim) Call(action map[string]any) (map[string]any, error) {
 	cmd.Stderr = stderr
 	cmd.Env = append(os.Environ(), "PYTHONNOUSERSITE=1")
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("published generic task shim rejected provider operation")
+		diagnostic := s.sanitizedCLIStderr(stderr.String())
+		if diagnostic == "" {
+			return nil, fmt.Errorf("published generic task shim rejected provider operation")
+		}
+		return nil, fmt.Errorf("published generic task shim rejected provider operation: %s", diagnostic)
 	}
 	var response map[string]any
 	decoder := json.NewDecoder(bytes.NewReader(stdout.Bytes()))
@@ -294,6 +300,26 @@ func (s *deliveryV1Shim) Call(action map[string]any) (map[string]any, error) {
 		return nil, fmt.Errorf("published generic task shim returned trailing output")
 	}
 	return response, nil
+}
+
+func (s *deliveryV1Shim) sanitizedCLIStderr(stderr string) string {
+	clean := strings.ToValidUTF8(stderr, "�")
+	for _, secret := range s.redactions {
+		if secret != "" {
+			clean = strings.ReplaceAll(clean, secret, "[redacted]")
+		}
+	}
+	clean = strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\t' || (r >= 0x20 && r != 0x7f) {
+			return r
+		}
+		return ' '
+	}, clean)
+	clean = strings.TrimSpace(clean)
+	if len(clean) > 2048 {
+		clean = strings.ToValidUTF8(clean[:2048], "�") + "…"
+	}
+	return clean
 }
 
 func (s *deliveryV1Shim) Claim(t *testing.T, taskID, actorID string) string {
