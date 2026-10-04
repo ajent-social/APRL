@@ -44,6 +44,7 @@ func TestCodeDeliveryV1HTTPPutLostReplyConcurrentReplayAndConflict(t *testing.T)
 	if f.lifecycleID != recovered.LifecycleID {
 		t.Fatalf("recovered lifecycle %s differs from submitted lifecycle %s", recovered.LifecycleID, f.lifecycleID)
 	}
+	codeDeliveryV1RequireTrustedZeroAccounting(t, f, false)
 
 	const concurrentPuts = 8
 	type putResult struct {
@@ -159,6 +160,9 @@ func TestCodeDeliveryV1StandaloneAndDelegatedLifecycleThroughGenericShim(t *test
 		t.Run(name, func(t *testing.T) {
 			f := newDeliveryV1Fixture(t, delegated)
 			f.submit(t)
+			if delegated {
+				codeDeliveryV1RequireTrustedZeroAccounting(t, f, false)
+			}
 			shim := newDeliveryV1Shim(t, f)
 			initial := shim.List(t)
 			if initial.LifecycleID != f.lifecycleID || initial.DeliveryGateID == "" || initial.DeliveryGateClaimID == "" {
@@ -287,6 +291,9 @@ func TestCodeDeliveryV1StandaloneAndDelegatedLifecycleThroughGenericShim(t *test
 			if persisted.DeliveryReceiptID != landedReceipt.ID || persisted.Completed[rereview.TaskID] != plantasks.OutcomeLanded {
 				t.Fatalf("durable lifecycle did not record exact landing: delivery_receipt=%s completed=%v", persisted.DeliveryReceiptID, persisted.Completed)
 			}
+			if delegated {
+				codeDeliveryV1RequireTrustedZeroAccounting(t, f, true)
+			}
 		})
 	}
 }
@@ -398,6 +405,7 @@ func TestCodeDeliveryV1LateResultsAreDeniedAfterStaleExpiryOrCancellation(t *tes
 			if beforeFence.Completed[author.TaskID] != "" || beforeFence.DeliveryReceiptID != "" {
 				t.Fatalf("UNKNOWN receipt granted completion/delivery authority: completed=%v delivery=%q", beforeFence.Completed, beforeFence.DeliveryReceiptID)
 			}
+			codeDeliveryV1RequireTrustedZeroAccounting(t, f, false)
 			positive := f.receipt(t, author.TaskID, plantasks.OutcomeCodingHandoff, ptrPR(f.pr()), nil)
 			if positive.ID == unknown.ID {
 				t.Fatal("fixture reused receipt identity")
@@ -427,6 +435,7 @@ func TestCodeDeliveryV1LateResultsAreDeniedAfterStaleExpiryOrCancellation(t *tes
 			response, callErr := shim.Call(map[string]any{"action": "result", "lifecycle_id": f.lifecycleID, "task_id": positive.TaskID, "expected_revision": expectedRevision, "claim_sha": claim, "receipt": positive})
 			codeDeliveryV1RequireProviderDenial(t, shim, providerCalls, response, callErr)
 			codeDeliveryV1AssertUnchanged(t, f, before, beforeBinding)
+			codeDeliveryV1RequireTrustedZeroAccounting(t, f, false)
 			shim.Release(t, author.TaskID, claim)
 		})
 	}
@@ -660,6 +669,39 @@ func codeDeliveryV1RequireStableGate(t *testing.T, snapshot deliveryV1ShimSnapsh
 	t.Helper()
 	if snapshot.DeliveryGateID != gateID || snapshot.DeliveryGateClaimID != gateClaimID || gateClaimID != "T-"+gateID {
 		t.Fatalf("delivery gate claim identity changed: gate=%s claim=%s want gate=%s claim=%s", snapshot.DeliveryGateID, snapshot.DeliveryGateClaimID, gateID, gateClaimID)
+	}
+}
+
+func codeDeliveryV1RequireTrustedZeroAccounting(t *testing.T, f *deliveryV1Fixture, wantLanded bool) {
+	t.Helper()
+	binding := f.binding(t)
+	digest, err := binding.Request.Digest()
+	if err != nil {
+		t.Fatalf("compute canonical request digest: %v", err)
+	}
+	if !binding.Authorization.Allowed || binding.CallerID != f.caller || binding.Authorization.CallerID != f.caller || binding.RequestDigest != digest || binding.Authorization.RequestDigest != digest || binding.Authorization.PolicyRevision != binding.Request.Spec.PolicyRevision || binding.Authorization.GrantRevision != "fixture-grant-v1" {
+		t.Fatalf("delegated binding lacks the exact trusted fixture grant: binding=%+v authorization=%+v digest=%s", binding, binding.Authorization, digest)
+	}
+	if binding.Request.Spec.ExecutionMode != "subscription_only" || binding.Request.Spec.Envelope.MaxCostCents != 0 {
+		t.Fatalf("fixture request is not subscription-only with zero monetary scope: execution=%q max_cost_cents=%d", binding.Request.Spec.ExecutionMode, binding.Request.Spec.Envelope.MaxCostCents)
+	}
+	observation := f.observation(t)
+	if observation.RequestDigest != digest || observation.Accounting.SpentCents != 0 || observation.Accounting.ReservedCents != 0 || observation.Accounting.UnknownCents != 0 || observation.Accounting.SettlementID != "" {
+		t.Fatalf("delegated accounting is not exact zero/no-settlement for request %s: %+v", digest, observation.Accounting)
+	}
+	if wantLanded {
+		if observation.Landed == nil || observation.Landed.LandedCommit == "" {
+			t.Fatalf("verified landed observation omitted landed proof: %+v", observation)
+		}
+		return
+	}
+	if observation.Landed != nil || binding.State.DeliveryReceiptID != "" {
+		t.Fatalf("unlanded state has delivery/landing authority: observation=%+v delivery_receipt=%q", observation, binding.State.DeliveryReceiptID)
+	}
+	for taskID, outcome := range binding.State.Completed {
+		if outcome == plantasks.OutcomeLanded {
+			t.Fatalf("unlanded state marked task %s complete by landing", taskID)
+		}
 	}
 }
 
