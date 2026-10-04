@@ -208,6 +208,13 @@ func TestProjectPortableObservationDigestRedactsClaimsAndReceiptDetails(t *testi
 	state := portableTestState(t)
 	author := state.Tasks[portableTestAuthorID].Authors[0]
 	portableTestApply(t, &state, portableTestAuthorID, author, OutcomeCodingHandoff, portableTestPR(portableTestSourceSHA), nil, portableTestStart.Add(time.Minute))
+	reviewer := Provenance{ActorID: "agent:privacy-test-reviewer", ActorKind: "agent", AuthoredAt: portableTestStart.Add(2 * time.Minute), SourceRevision: portableTestSourceSHA}
+	if err := state.Admit(Admission{TaskID: portableTestGateID, ClaimSHA: strings.Repeat("f", 40), ActorID: reviewer.ActorID, Revision: state.Revision, ExpiresAt: portableTestStart.Add(10 * time.Minute)}, portableTestStart.Add(2*time.Minute)); err != nil {
+		t.Fatalf("admit canonical review task for privacy fixture: %v", err)
+	}
+	if err := state.ValidateAt(portableTestStart.Add(2 * time.Minute)); err != nil {
+		t.Fatalf("privacy fixture must be a valid persisted lifecycle state: %v", err)
+	}
 	if len(state.Claims) == 0 || len(state.Receipts) == 0 {
 		t.Fatal("fixture must contain both a persisted claim token and a receipt detail")
 	}
