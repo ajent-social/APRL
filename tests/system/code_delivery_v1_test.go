@@ -461,6 +461,59 @@ func TestCodeDeliveryV1GlobalAttemptCapIncludesMandatoryReview(t *testing.T) {
 	shim.Release(t, rereview.TaskID, reviewAttempt)
 }
 
+func TestCodeDeliveryV1ReviewDeniesWrongHeadBaseAndAuthorIndependence(t *testing.T) {
+	f := newDeliveryV1Fixture(t, true)
+	f.submit(t)
+	shim := newDeliveryV1Shim(t, f)
+	initial := shim.List(t)
+	authorTask := codeDeliveryV1VisibleTask(t, f, initial, plantasks.StageAuthor, 0)
+	authorClaim := codeDeliveryV1Admit(t, f, shim, authorTask.TaskID, f.author, f.request.Spec.Envelope.ExpiresAt)
+	authorPR := f.pr()
+	codeDeliveryV1Record(t, f, shim, authorTask.TaskID, plantasks.OutcomeCodingHandoff, &authorPR, nil, authorClaim)
+	shim.Release(t, authorTask.TaskID, authorClaim)
+
+	handedOff := shim.List(t)
+	review := codeDeliveryV1VisibleTask(t, f, handedOff, plantasks.StageReview, 0)
+	beforeAuthorReview := f.load(t)
+	beforeAuthorBinding := f.binding(t)
+	authorReviewClaim := shim.Claim(t, review.TaskID, f.author.ActorID)
+	f.setActor(f.author)
+	authorSnapshot := shim.List(t)
+	if authorSnapshot.LifecycleID != f.lifecycleID {
+		t.Fatalf("author review attempt snapshot lifecycle=%s, want %s", authorSnapshot.LifecycleID, f.lifecycleID)
+	}
+	providerCalls := shim.ProviderCalls()
+	response, callErr := shim.Call(map[string]any{"action": "admit", "lifecycle_id": f.lifecycleID, "task_id": review.TaskID, "expected_revision": authorSnapshot.Revision, "claim_sha": authorReviewClaim, "expires_at": f.request.Spec.Envelope.ExpiresAt.Format(time.RFC3339Nano)})
+	codeDeliveryV1RequireProviderDenial(t, shim, providerCalls, response, callErr)
+	codeDeliveryV1AssertUnchanged(t, f, beforeAuthorReview, beforeAuthorBinding)
+	shim.Release(t, review.TaskID, authorReviewClaim)
+
+	reviewerClaim := codeDeliveryV1Admit(t, f, shim, review.TaskID, f.reviewer, f.request.Spec.Envelope.ExpiresAt)
+	admitted := shim.List(t)
+	beforeReview := f.load(t)
+	beforeReviewBinding := f.binding(t)
+	wrongHead := authorPR
+	wrongHead.HeadSHA = strings.Repeat("e", 40)
+	wrongHeadActor := f.reviewer
+	wrongHeadActor.SourceRevision = wrongHead.HeadSHA
+	f.setActor(wrongHeadActor)
+	wrongHeadReceipt := f.receipt(t, review.TaskID, plantasks.OutcomeApproved, &wrongHead, nil)
+	providerCalls = shim.ProviderCalls()
+	response, callErr = shim.Call(map[string]any{"action": "result", "lifecycle_id": f.lifecycleID, "task_id": review.TaskID, "expected_revision": admitted.Revision, "claim_sha": reviewerClaim, "receipt": wrongHeadReceipt})
+	codeDeliveryV1RequireProviderDenial(t, shim, providerCalls, response, callErr)
+	codeDeliveryV1AssertUnchanged(t, f, beforeReview, beforeReviewBinding)
+
+	wrongBase := authorPR
+	wrongBase.BaseSHA = strings.Repeat("b", 40)
+	f.setActor(f.reviewer)
+	wrongBaseReceipt := f.receipt(t, review.TaskID, plantasks.OutcomeApproved, &wrongBase, nil)
+	providerCalls = shim.ProviderCalls()
+	response, callErr = shim.Call(map[string]any{"action": "result", "lifecycle_id": f.lifecycleID, "task_id": review.TaskID, "expected_revision": admitted.Revision, "claim_sha": reviewerClaim, "receipt": wrongBaseReceipt})
+	codeDeliveryV1RequireProviderDenial(t, shim, providerCalls, response, callErr)
+	codeDeliveryV1AssertUnchanged(t, f, beforeReview, beforeReviewBinding)
+	shim.Release(t, review.TaskID, reviewerClaim)
+}
+
 func TestCodeDeliveryV1ReadyProjectionDoesNotGrantAdmission(t *testing.T) {
 	f := newDeliveryV1Fixture(t, true)
 	f.submit(t)
