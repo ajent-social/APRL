@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/url"
 	"path"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -189,7 +190,7 @@ type PortableEvaluation struct{}
 type portableAPRLExtension struct {
 	LifecycleID                   string                    `json:"lifecycleId"`
 	LifecycleRevision             int64                     `json:"lifecycleRevision"`
-	LifecycleStateDigest          string                    `json:"lifecycleStateDigest"`
+	NativeObservationDigest       string                    `json:"nativeObservationDigest"`
 	DeliveryGateID                string                    `json:"deliveryGateId"`
 	LifecycleAuthor               portableContributor       `json:"lifecycleAuthor"`
 	LifecycleAuthorSourceRevision string                    `json:"lifecycleAuthorSourceRevision"`
@@ -340,7 +341,7 @@ func ProjectPortable(state State, authored PortableAuthoredSource) (PortableBund
 	stages = uniquePortableStrings(stages)
 	metadata := portableAPRLExtension{
 		LifecycleID: state.Lifecycle.ID, LifecycleRevision: state.Revision,
-		LifecycleStateDigest: stateDigest, DeliveryGateID: state.Lifecycle.DeliveryGateID,
+		NativeObservationDigest: stateDigest, DeliveryGateID: state.Lifecycle.DeliveryGateID,
 		LifecycleAuthor: portableContributorFrom(state.Lifecycle.Authored), LifecycleAuthorSourceRevision: state.Lifecycle.Authored.SourceRevision,
 		ContractDigest: PortableContractDigest, AdapterVersion: PortableAdapterVersion,
 		CallerSource:   portableCallerSource{Classification: "caller-supplied-unverified", ClaimedRef: authored.SourceRef, ClaimedRevision: authored.SourceRevision, Digest: sourceDigest},
@@ -423,6 +424,9 @@ func validatePortableAuthoredSource(state State, authored PortableAuthoredSource
 	if !bytes.Contains(authored.SourceBytes, []byte(authored.PlanTitle)) || !strings.Contains(authored.TaskRaw, authored.TaskTitle) || !strings.Contains(authored.TaskRaw, authored.Acceptance) {
 		return &PortableMappingError{Field: "authored_fields", Reason: "title and acceptance must occur in the supplied authored source", Cause: ErrPortableInvalidSource}
 	}
+	if err := validatePortableTaskMarkers(authored.TaskRaw, authored.Stage, authored.AuthoredStatus); err != nil {
+		return err
+	}
 	if authored.SourceRevision != state.Lifecycle.Authored.SourceRevision {
 		return &PortableMappingError{Field: "source_revision", Reason: "does not match the canonical lifecycle author revision", Cause: ErrPortableInvalidSource}
 	}
@@ -433,6 +437,29 @@ func validatePortableAuthoredSource(state State, authored PortableAuthoredSource
 	case "pending", "active", "blocked", "complete":
 	default:
 		return &PortableMappingError{Field: "authored_status", Reason: "must be explicit pending, active, blocked, or complete", Cause: ErrPortableInvalidSource}
+	}
+	return nil
+}
+
+var portableCheckboxRow = regexp.MustCompile(`(?m)^\s*-\s*\[([^\]\r\n])\]`)
+var portableStageMarker = regexp.MustCompile(`\bstage:\s*([A-Za-z0-9][A-Za-z0-9_-]*)\b`)
+
+func validatePortableTaskMarkers(taskRaw, stage, authoredStatus string) error {
+	rows := portableCheckboxRow.FindAllStringSubmatch(taskRaw, -1)
+	if len(rows) != 1 {
+		return &PortableMappingError{Field: "task_raw", Reason: "must contain exactly one Markdown checkbox row", Cause: ErrPortableInvalidSource}
+	}
+	statusByMarker := map[string]string{" ": "pending", "x": "complete", "X": "complete", "~": "active", "!": "blocked"}
+	rowStatus, ok := statusByMarker[rows[0][1]]
+	if !ok || rowStatus != authoredStatus {
+		return &PortableMappingError{Field: "authored_status", Reason: "does not match the authored Markdown checkbox", Cause: ErrPortableInvalidSource}
+	}
+	if strings.Count(taskRaw, "stage:") != 1 {
+		return &PortableMappingError{Field: "task_raw", Reason: "must contain exactly one stage marker", Cause: ErrPortableInvalidSource}
+	}
+	markers := portableStageMarker.FindAllStringSubmatch(taskRaw, -1)
+	if len(markers) != 1 || markers[0][1] != stage {
+		return &PortableMappingError{Field: "stage", Reason: "does not match the authored stage marker", Cause: ErrPortableInvalidSource}
 	}
 	return nil
 }
@@ -627,7 +654,29 @@ func portableObservationTimeSource(state State) string {
 }
 
 func portableStateDigest(state State) (string, error) {
-	payload, err := json.Marshal(state)
+	// Hash only a redacted view. This is an observation fingerprint, never a
+	// proof of host authority, and must not commit secret claim hashes or
+	// arbitrary diagnostic detail into portable output.
+	redacted := state
+	redacted.Claims = make(map[string]Admission, len(state.Claims))
+	for taskID, admission := range state.Claims {
+		admission.ClaimSHA = ""
+		redacted.Claims[taskID] = admission
+	}
+	redacted.Receipts = make(map[string]Receipt, len(state.Receipts))
+	for receiptID, receipt := range state.Receipts {
+		receipt.Detail = ""
+		redacted.Receipts[receiptID] = receipt
+	}
+	redacted.LateLandedFacts = make(map[string]LateLandingFact, len(state.LateLandedFacts))
+	for factID, fact := range state.LateLandedFacts {
+		fact.Receipt.Detail = ""
+		redacted.LateLandedFacts[factID] = fact
+	}
+	if redacted.EscalationReason != "" {
+		redacted.EscalationReason = "escalated"
+	}
+	payload, err := json.Marshal(redacted)
 	if err != nil {
 		return "", err
 	}
