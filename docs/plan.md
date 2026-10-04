@@ -6,7 +6,7 @@ Change Summary: 2026 10 04 - Reconciled planning baseline with remote main 60c11
 
 Build APRL in Go, as a continuously available service that orchestrates separate author, reviewer, and fixer GitHub App identities. Webhooks feed a Postgres-authoritative state machine; Redis Streams delivers fenced jobs to ephemeral headless Codex workers. Routine PRs may merge only after current-snapshot CI/review and target policy pass. Human pause, bounded attempts, and enforceable budgets are product requirements.
 
-The repository has an accepted Go/Postgres/Redis durable control-plane foundation on current main, with implementation and task receipts under `internal/`, `docs/tasks/`, and `docs/contracts.md`. E1 broker policy, recovery, process supervision, assembled service roles, end-to-end foundation proof, and quality-gate handoff remain incomplete as tracked below. This plan preserves the existing RFC and historical task evidence; it does not claim live provider execution or production deployment.
+Current delivery reconciliation (2026 10 04): E1 fixture foundation and E6/E7/E8 source/fixture delivery gates are landed; production host factories, real OCI/provider containment/metering, GitHub App integration and AWS operation remain unqualified. Historical receipts below retain their original scope.
 
 The user requires Go. Use standard-library net/http and flag, pgx/v5 for Postgres, and go-redis/v9 for Redis Streams. The RFC has been aligned to this Go/Redis Streams stack; the authoritative Postgres ownership and budget protocols are preserved. Pin dependency versions after the compatibility probe and pin the supported Go toolchain (local planning environment: Go 1.27.1). See [ADR 001](adr/001-service-runtime.md), [ADR 002](adr/002-durable-control-plane.md), and [ADR 003](adr/003-metered-execution.md). Budget bounds on real Codex/provider calls are unproven and block live paid agents, not fixture-based foundation work. No production host or credentials are supplied.
 
@@ -144,12 +144,7 @@ Acceptance: T1.1-T1.19 pass on owned test services; a signed event completes thr
 - [x] T1.19.R Independently review and deliver T1.19 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/12 blocked-by: [T1.19] acc: [exact-head independent acceptance, guarded merge and actual landing verified]
   - S1.19.1 Verify: Make a required integration fixture absent and assert CI fails rather than passes/skips. Run the scoped tests, then formatter/linter checks after code changes.
 
-### E2 - Review-only B with verified runtime and metering
-fidelity: outline
-Build the real OCI supervisor, external metered gateway and credential broker adapter, trusted checkout/config, review output validation, thread/finding persistence, and GitHub review posting. Prove provider request bounds before admitting paid execution.
-Acceptance: A live sandbox review preserves unanchored blockers; no fixer/merge is enabled; credentials/egress/cancellation and billing envelopes are proven for pinned runtime versions.
-- [ ] T2.0 PLAN: expand E2 after its trigger evidence  Owner: coordinator  Est: 60m  kind: plan  delivers: [E2 executable tasks, contracts, and updated use cases]  deps: [T1.19.R]  acc: [E2 is executable with resolved dependencies, owned file scopes and falsifiable acceptance for every row; explicit SDLC stage rows and actual verified-landed exit IDs exist; production capability acceptance maps into T9.12-T9.16]  blocked-by: [T1.19.R]  blocked: Prior epic implementation exit evidence is not yet available; coordinator-only planning
-Trigger: Dependency planning-task completion alone never permits downstream coding; require the prior epic's implementation acceptance, substitute its resulting milestone task IDs, then groom this epic. E5 may start with review-only production while E3/E4 remain disabled.
+### E2 -- Review-only B with verified runtime and metering -> docs/plans/E2-review-runtime.md (2/10)
 
 ### E3 - Bounded B/C remediation
 fidelity: outline
@@ -290,7 +285,7 @@ T1.18.
 - [x] T1.19 Scheduling reference; acceptance and scope are in the WBS.
 T1.19.
 #### Wave 13: Next frontier planning (1 coordinator)
-- [ ] T2.0 Scheduling reference; acceptance and scope are in the WBS.
+- [x] T2.0 Scheduling reference; acceptance and scope are in the WBS.
 T2.0. Later planning waves are scheduled after the previous epic's actual exit, not just its planning row. Lower parallel counts reflect real schema/interface/integration dependencies; do not fill them with unsupported future implementation.
 
 #### Wave 14: Deferred remediation planning (1 coordinator)
@@ -411,6 +406,19 @@ These deferred planning waves are triggers, not a fixed calendar. Expansion inse
 #### Wave 37: Production SDLC gate T9.16 (1 coordinator)
 - [ ] T9.16 Scheduling reference; scope, acceptance and dependencies are in E9.
 
+#### Wave 38: Host-only result transport adapters (2 GPT-6-Luna workers)
+- [ ] T2.1 Scheduling reference; preflight is coordinator-owned.
+- [ ] T2.2 Scheduling reference; hostauth owns only its package.
+- [ ] T2.3 Scheduling reference; resultclient owns only its package.
+#### Wave 39: Result transport acceptance and delivery (1 coordinator)
+- [ ] T2.4 Scheduling reference; real TLS/Postgres API acceptance plus hosted CI.
+- [ ] T2.5 Scheduling reference; independent exact-head review.
+- [ ] T2.6 Scheduling reference; guarded merge.
+- [ ] T2.7 Scheduling reference; verify landed bytes and acceptance.
+#### Wave 40: Next runtime frontier (1 coordinator)
+- [ ] T2.8 Scheduling reference; expand remaining OCI/GitHub/provider/host factory work.
+- [ ] T2.9 Scheduling reference; real live review pilot remains blocked on qualified inputs and expanded actual exits.
+
 ## 6. Timeline and Milestones
 
 | ID | Milestone | Dependencies | Exit evidence |
@@ -509,7 +517,7 @@ Revision waves: design and contracts plus read-only compatibility discovery in p
 
 The T7 review-task primitives are an additive foundation slice. They do not satisfy the caller-facing code-delivery/v1 service protocol, subscription/runtime qualification or E6 end-to-end scheduler integration. Existing E6 IDs and gates are preserved.
 
-Historical review-task author handoff: T7.1-T7.6 completed local acceptance and PR publication before T7.7 independent delivery. Its current PR head/base must be captured from GitHub at admission and rechecked before merge. Code was qualified at local source 5b634b9 with 203 regular and 203 race pass events, zero skips, build/vet/lint and restored host-proof regression; the delivery branch preserves byte-identical Go/migration/test source. Generic helper landed separately with 19 focused Python tests. The handoff itself did not complete T7.7; the subsequent landed receipt below completes that review. E1/E6 remain incomplete.
+Current delivery reconciliation (2026 10 04): E1 fixture foundation and E6/E7/E8 source/fixture delivery gates are landed; production host factories, real OCI/provider containment/metering, GitHub App integration and AWS operation remain unqualified. Historical receipts below retain their original scope.
 
 T7 delivery receipt: PR3 independently reviewed at exact head 9759d834dd4312f00cf3efae6f61f6fae193b17b and merged by guarded rebase. Actual main landing bebad8295ab86fedffd0f6e3171a43ec522c3b05 has reviewed tree 87c85a2abf35c3bf0f4529c43b342b714473636e. Independent agent acceptance was recorded as a GitHub COMMENT because the shared account authored the PR; no formal GitHub approval or hosted CI success is claimed. T7.7 claim released. No runtime activation or E1/E6 completion.
 
@@ -625,3 +633,5 @@ T6.5.F1.R verified delivery: independent acceptance5976552507 reviewed PR19 exac
 The execution controller continues across planning triggers, delivery, release, staging, production promotion and operational verification until T9.16 succeeds or a specific unmet prerequisite blocks it. It must report the next runnable task and unblock action, rather than declaring completion at merge. `/plan` writes and checks this graph only; it does not start that execution loop. The destination is now explicit scope; execution still needs an identified AWS account/region, finite cost envelope and qualified authority before billable provisioning or provider use. Do not repeatedly seek routine approval already granted during execution.
 
 E9 scheduling: one coordinator executes T9.1; T9.2 expands the reachable production horizon after reconciliation. T9.3-T9.11 follow their dependencies. T9.12 waits for the actual expanded E2-E5 exits as well as staging evidence. T9.13-T9.16 follow sequentially. Implementation decomposition may use up to three GPT-6-Luna workers with isolated external-SSD worktrees, exact ownership and serialized build leases; operational promotion and final acceptance stay coordinator-owned. No worker is launched by this planning refinement.
+
+2026 10 04 execution reconciliation: T9.1 audit completed with explicit unresolved AWS account/region approval, cost ceiling, real GitHub Apps/provider grant and Cloudflare DNS tool binding. Main d97a89d has successful hosted CI run37192937020. Local builds held because host load exceeds 10; no build lease is bypassed. E2 first credential-free adapter horizon is expanded; no production factory, provider or deployment enabled.
