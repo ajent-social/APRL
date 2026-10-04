@@ -517,6 +517,8 @@ func TestProjectPortableFailsClosedForMissingOrMismatchedAuthoredSource(t *testi
 		{name: "abbreviated IPv4 loopback", change: func(source *PortableAuthoredSource) { source.SourceRef = "https://127.1/plan.md" }, want: ErrPortableInvalidSource},
 		{name: "integer IPv4 loopback", change: func(source *PortableAuthoredSource) { source.SourceRef = "https://2130706433/plan.md" }, want: ErrPortableInvalidSource},
 		{name: "hexadecimal IPv4 loopback", change: func(source *PortableAuthoredSource) { source.SourceRef = "https://0x7f000001/plan.md" }, want: ErrPortableInvalidSource},
+		{name: "encoded relative traversal", change: func(source *PortableAuthoredSource) { source.SourceRef = "docs/%2e%2e/secrets.md" }, want: ErrPortableInvalidSource},
+		{name: "encoded relative separator", change: func(source *PortableAuthoredSource) { source.SourceRef = "docs/case%2fsecret.md" }, want: ErrPortableInvalidSource},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
