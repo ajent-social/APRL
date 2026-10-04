@@ -428,9 +428,9 @@ func TestPlanTaskDeliveryV1HTTPRejectsUntrustedBindingsWithoutPersistence(t *tes
 		t.Fatalf("send plaintext request: %v", err)
 	}
 	plainBody, readErr := io.ReadAll(response.Body)
-	closeErr := response.Body.Close()
-	if readErr != nil || closeErr != nil {
-		t.Fatalf("read/close plaintext response: read=%v close=%v", readErr, closeErr)
+	plainCloseErr := response.Body.Close()
+	if readErr != nil || plainCloseErr != nil {
+		t.Fatalf("read/close plaintext response: read=%v close=%v", readErr, plainCloseErr)
 	}
 	plantasksHTTPAssertError(t, response.StatusCode, plainBody, http.StatusBadRequest, "https_required")
 }
