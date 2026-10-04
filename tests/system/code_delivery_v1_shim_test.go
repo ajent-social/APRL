@@ -20,6 +20,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -43,13 +45,16 @@ type deliveryV1ShimSnapshot struct {
 }
 
 type deliveryV1Shim struct {
-	fixture   *deliveryV1Fixture
-	shimPath  string
-	claimPath string
-	registry  string
-	remote    string
-	checkout  string
-	claims    map[string]deliveryV1ShimClaim
+	fixture         *deliveryV1Fixture
+	shimPath        string
+	claimPath       string
+	registry        string
+	remote          string
+	checkout        string
+	claims          map[string]deliveryV1ShimClaim
+	providerCalls   atomic.Int64
+	providerErrorMu sync.RWMutex
+	providerError   string
 }
 
 type deliveryV1ShimClaim struct {
@@ -93,6 +98,7 @@ func newDeliveryV1Shim(t *testing.T, f *deliveryV1Fixture) *deliveryV1Shim {
 		t.Fatal("create temporary provider bridge credential")
 	}
 	bridgeToken := hex.EncodeToString(bridgeTokenBytes)
+	var s *deliveryV1Shim
 	bridge := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/provider" || r.TLS == nil ||
 			subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+bridgeToken)) != 1 ||
@@ -113,9 +119,19 @@ func newDeliveryV1Shim(t *testing.T, f *deliveryV1Fixture) *deliveryV1Shim {
 			return
 		}
 		var response bytes.Buffer
+		s.providerCalls.Add(1)
 		if err := f.provider.Handle(r.Context(), bytes.NewReader(body), &response); err != nil {
+			s.setProviderError("provider_handler_error")
 			http.Error(w, "provider unavailable", http.StatusServiceUnavailable)
 			return
+		}
+		var providerReply struct {
+			Error string `json:"error"`
+		}
+		if json.Unmarshal(response.Bytes(), &providerReply) == nil {
+			s.setProviderError(providerReply.Error)
+		} else {
+			s.setProviderError("invalid_provider_reply")
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
@@ -161,7 +177,7 @@ except Exception:
 	if err := os.WriteFile(registryPath, registryBytes, 0o600); err != nil {
 		t.Fatal("write temporary provider registry")
 	}
-	s := &deliveryV1Shim{
+	s = &deliveryV1Shim{
 		fixture: f, shimPath: shimPath, claimPath: claimPath, registry: registryPath,
 		remote: remote, checkout: checkout,
 		claims: make(map[string]deliveryV1ShimClaim),
@@ -172,6 +188,28 @@ except Exception:
 		}
 	})
 	return s
+}
+
+func (s *deliveryV1Shim) ProviderCalls() int64 {
+	if s == nil {
+		return 0
+	}
+	return s.providerCalls.Load()
+}
+
+func (s *deliveryV1Shim) LastProviderError() string {
+	if s == nil {
+		return ""
+	}
+	s.providerErrorMu.RLock()
+	defer s.providerErrorMu.RUnlock()
+	return s.providerError
+}
+
+func (s *deliveryV1Shim) setProviderError(code string) {
+	s.providerErrorMu.Lock()
+	s.providerError = code
+	s.providerErrorMu.Unlock()
 }
 
 func deliveryV1PinnedHostFile(t *testing.T, env, wantSHA256 string) string {
