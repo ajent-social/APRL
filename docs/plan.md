@@ -150,7 +150,7 @@ Acceptance: T1.1-T1.19 pass on owned test services; a signed event completes thr
 fidelity: outline
 Expand after E2 live acceptance, adding fixer inputs for CI and persisted findings, target merges without force-push, local correction limits, successor reply handoffs, thread resolution and fingerprint normalization.
 Acceptance: CI-only and review loops stop at shared attempt/cost limits; human pushes and pauses fence all work; benchmark evidence records resolution and review error rates.
-- [ ] T3.0 PLAN: expand E3 after its trigger evidence  Owner: coordinator  Est: 60m  kind: plan  delivers: [E3 executable tasks, contracts, and updated use cases]  deps: [T2.0]  acc: [E3 is executable with resolved dependencies, owned file scopes and falsifiable acceptance for every row; explicit SDLC stage rows and actual verified-landed exit IDs exist; production capability acceptance maps into T9.12-T9.16]  blocked-by: [T2.0]  blocked: Prior epic implementation exit evidence is not yet available; coordinator-only planning
+- [ ] T3.0 PLAN: expand E3 after its trigger evidence  Owner: coordinator  Est: 60m  kind: plan  delivers: [E3 executable tasks, contracts, and updated use cases]  deps: [T2.9]  acc: [E3 is executable with resolved dependencies, owned file scopes and falsifiable acceptance for every row; explicit SDLC stage rows and actual verified-landed exit IDs exist; production capability acceptance maps into T9.12-T9.16]  blocked-by: [T2.9]  blocked: Real E2 review-only pilot exit T2.9 is not yet qualified; coordinator-only planning
 Trigger: Dependency planning-task completion alone never permits downstream coding; require the prior epic's implementation acceptance, substitute its resulting milestone task IDs, then groom this epic. E5 may start with review-only production while E3/E4 remain disabled.
 
 ### E4 - Authoring and guarded merging
@@ -165,7 +165,7 @@ fidelity: outline
 Target selected: AWS at https://aprl.sire.run. Expand after T9.1 reconciles current delivery evidence and E2 live integration evidence is available; account, region, architecture and cost envelope remain to be qualified. Add provisioning/supervision, TLS/webhook routing, secrets, DB backup/restore, retention, monitoring, escalation notification and phased enablement.
 Acceptance: Deploy to production and observe health, signed deliveries, recovery and control behavior live; approve Phase 2/3 separately after E3/E4 gates; document rollback as disabling autonomy without deleting audit data.
 Dependency boundary: E5 expansion separates source/staging readiness exits from production operational acceptance. T9.12 consumes only E5 source/staging readiness; T9.13-T9.16 fulfill E5 deployment/live acceptance. Never place an E5 production exit upstream of T9.13 or create a second production promotion path.
-- [ ] T5.0 PLAN: expand E5 after its trigger evidence  Owner: coordinator  Est: 60m  kind: plan  delivers: [E5 executable tasks, contracts, and updated use cases]  deps: [T2.0]  acc: [E5 is executable with resolved dependencies, owned file scopes and falsifiable acceptance for every row; explicit SDLC stage rows and actual verified-landed exit IDs exist; production capability acceptance maps into T9.12-T9.16]  blocked-by: [T2.0]  blocked: Prior epic implementation exit evidence is not yet available; coordinator-only planning
+- [ ] T5.0 PLAN: expand E5 after its trigger evidence  Owner: coordinator  Est: 60m  kind: plan  delivers: [E5 executable tasks, contracts, and updated use cases]  deps: [T2.9, T9.1]  acc: [E5 is executable with resolved dependencies, owned file scopes and falsifiable acceptance for every row; explicit SDLC stage rows and actual verified-landed exit IDs exist; production capability acceptance maps into T9.12-T9.16]  blocked-by: [T2.9, T9.1]  blocked: Real E2 pilot, selected AWS account/region and finite allowance remain unqualified; coordinator-only planning
 
 ### E6 - Whole-lifecycle integration and executable review flow
 
@@ -224,7 +224,7 @@ Trigger: Dependency planning-task completion alone never permits downstream codi
 - [x] T8.6 Route outbox work by owner and bind cancellation to exact runs  Owner: control-routing kind: agent stage: author delivery-gate: T8.6.R lane: agent blocked-by: [T1.9, T1.11, T8.1.R2] acc: [dispatcher never consumes LABEL_SYNC; router/control cancel intents capture original task/job/run before revocation; no task-only or persisted-PID cancellation; real PostgreSQL regression and corrective handoff]
 - [x] T8.6.R Independently review and deliver outbox ownership correction  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/9 blocked-by: [T8.6] acc: [exact-head independent acceptance, guarded merge and verified actual landing]
 
-### E9 -- Release, AWS production and operational acceptance -> docs/plans/E9-production-sdlc.md (0/16)
+### E9 -- Release, AWS production and operational acceptance -> docs/plans/E9-production-sdlc.md (1/16)
 
 ## 5. Parallel Work and Waves
 
