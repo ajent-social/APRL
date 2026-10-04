@@ -55,13 +55,13 @@ func portableTestState(t *testing.T) State {
 }
 
 func portableTestAuthoredSource(state State) PortableAuthoredSource {
-	raw := []byte("# APRL portable adapter fixture\n\n## Portable parent task\n\n- [ ] Preserve reviewed delivery authority\n")
+	raw := []byte("# APRL portable adapter fixture\n\n## Portable parent task\n\n- [ ] Portable parent task: Preserve reviewed delivery authority\n")
 	return PortableAuthoredSource{
 		PlanTitle: "APRL portable adapter fixture", TaskTitle: "Portable parent task",
 		Stage: "author", AuthoredStatus: "pending", Acceptance: "Preserve reviewed delivery authority",
 		SourceRef:      "https://github.com/example/portable-project/blob/" + portableTestSourceSHA + "/docs/plan.md",
 		SourceRevision: state.Lifecycle.Authored.SourceRevision, SourceBytes: raw,
-		TaskRaw: "- [ ] Preserve reviewed delivery authority",
+		TaskRaw: "- [ ] Portable parent task: Preserve reviewed delivery authority",
 	}
 }
 
@@ -73,7 +73,12 @@ func portableTestApply(t *testing.T, state *State, taskID string, actor Provenan
 	if expires.After(deadline) {
 		expires = deadline
 	}
-	if err := state.Admit(Admission{TaskID: taskID, ClaimSHA: claim, ActorID: actor.ActorID, Revision: state.Revision, ExpiresAt: expires}, at); err != nil {
+	if existing, ok := state.Claims[taskID]; ok {
+		if existing.ActorID != actor.ActorID || !at.Before(existing.ExpiresAt) {
+			t.Fatalf("canonical claim for %s is not reusable by %s at %s: %+v", taskID, actor.ActorID, at, existing)
+		}
+		claim = existing.ClaimSHA
+	} else if err := state.Admit(Admission{TaskID: taskID, ClaimSHA: claim, ActorID: actor.ActorID, Revision: state.Revision, ExpiresAt: expires}, at); err != nil {
 		t.Fatalf("canonical admission for %s: %v", taskID, err)
 	}
 	receiptID := portableTestReceiptID(len(state.Receipts) + 1)
@@ -247,8 +252,10 @@ func TestProjectPortableKeepsUnknownAndCancellationOutcomesNonSuccess(t *testing
 
 	t.Run("cancel remains canceled", func(t *testing.T) {
 		state := portableTestState(t)
-		reviewer := Provenance{ActorID: "agent:operator", ActorKind: "operator", AuthoredAt: portableTestStart.Add(time.Minute), SourceRevision: portableTestSourceSHA}
-		portableTestApply(t, &state, portableTestGateID, reviewer, OutcomeCancel, nil, nil, portableTestStart.Add(time.Minute))
+		author := state.Tasks[portableTestAuthorID].Authors[0]
+		portableTestApply(t, &state, portableTestAuthorID, author, OutcomeCodingHandoff, portableTestPR(portableTestSourceSHA), nil, portableTestStart.Add(time.Minute))
+		operator := Provenance{ActorID: "agent:operator", ActorKind: "operator", AuthoredAt: portableTestStart.Add(2 * time.Minute), SourceRevision: portableTestSourceSHA}
+		portableTestApply(t, &state, portableTestGateID, operator, OutcomeCancel, nil, nil, portableTestStart.Add(2*time.Minute))
 		bundle, err := ProjectPortable(state, portableTestAuthoredSource(state))
 		if err != nil {
 			t.Fatalf("project canceled canonical lifecycle: %v", err)
