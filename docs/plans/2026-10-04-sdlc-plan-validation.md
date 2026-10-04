@@ -5,3 +5,5 @@
 Installed plan parser: 84 tasks, including 16 new E9 gates; all 64 completed authored task rows preserved byte-for-byte. All dependency references resolve, dependency graph is acyclic, no duplicate IDs or malformed metadata, all tasks assigned waves. Existing historical delivery receipts were preserved, not rerun. Production evidence is not supplied by these planning checks.
 
 Open inputs: AWS account/region, hosting topology, DNS ownership, finite AWS/provider costs, production executor authority, real GitHub/App/provider qualification, actual expanded epic exit IDs and operational observation thresholds. Next task: T9.1 reconciliation/preflight. T9.16 is the overall completion boundary. No release, infrastructure apply or deployment occurred.
+
+Independent review of initial head found a future E5 production dependency cycle and an early-artifact sequencing gap. Revised graph separates E5 source/staging readiness from downstream operational acceptance and requires actual integrated product source exits before T9.8 builds the release. Exact-head re-review and GitHub checks are recorded in the PR before merge.
