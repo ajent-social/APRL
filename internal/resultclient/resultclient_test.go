@@ -113,7 +113,7 @@ func TestSubmitAcceptsNormalizedOperationUUID(t *testing.T) {
 	result := validTestResult()
 	result.OperationID = "ABCDEFAB-ABCD-4ABC-8ABC-ABCDEFABCDEF"
 	normalized := strings.ToLower(result.OperationID)
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprintf(w, `{"accepted":true,"operation_id":%q}`, normalized)
 	}))
