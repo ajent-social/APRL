@@ -1,6 +1,6 @@
 # APRL Implementation Plan
 
-Change Summary: 2026 10 03 - E1 foundation tasks T1.1-T1.19 have accepted/delivered evidence; current main is 5bb7556 after PR12. Owned-service tests and hosted Linux CI pass 315 normal/315 race events with zero failures/skips. The complete standalone/delegated lifecycle integration contract is documented below; neutral code-delivery/v1 wire schema is frozen; adapter and interoperability proof remain pending. No live paid execution or production rollout is claimed.
+Change Summary: 2026 10 04 - Reconciled planning baseline with remote main 60c1133f5a411e0085b51120394133d531d95973; preserved completed work and local draft; added first-class SDLC and AWS production acceptance gates. Planning only; no deployment performed.
 
 ## 1. Context
 
@@ -51,6 +51,19 @@ The initial service has three supervised roles: API, control, and worker. The co
 
 Queue contract: XADD carries a stable logical job UUID in its fields; Redis assigns an independent stream-entry ID. Duplicate stream entries are safe because Postgres deduplicates completed/owned logical work. XREADGROUP delivers, XACK follows durable completion/rejection, and XAUTOCLAIM restores abandoned pending delivery. Every reclaimed delivery must still obtain a valid Postgres lease. Delayed retries are due Postgres outbox rows, not an assumed Redis Streams scheduler. Do not trim unacknowledged entries; the durable reconciler rebuilds delivery after Redis loss.
 
+
+### Production completion contract (2026 10 04)
+
+The accepted destination is **https://aprl.sire.run on AWS**. The plan remains open until T9.16 passes: all ten use cases and E1-E8 outcomes are qualified in production, including authoring, review, remediation, guarded merge, pause/resume, policy, budgets, recovery, escalation and preservation of human changes. Review-only rollout is an intermediate milestone. Local tests, PR handoff, approved review, verified landing, a release, infrastructure creation and HTTP health are separate evidence boundaries and cannot close the overall plan.
+
+This is an ordinary repository planning refinement, not enrollment into the APRL service. Preserve ADR 007: if an execution slice is enrolled later, its service-native review/delivery gate owns merge and verified landing; replace that slice's ordinary stage projection with the canonical binding rather than dispatching duplicate merge work. Existing completed review/delivery rows retain their evidence and semantics.
+
+E2-E5 remain rolling-wave outlines. Each has exactly one planning trigger; expansion must create explicit preflight, implementation, changed-behavior verification, independent review, merge and landed-verification rows for every ordinary coding candidate (or the canonical enrolled gate), and expose its real exit task IDs. Planning-row completion alone never proves the epic shipped. Accepted findings append fix, affected verification and re-review tasks; head/base changes invalidate approval and required-check evidence.
+
+Execution bindings: planning uses the installed plan skill and local parser; aws and gh CLIs and Kazi are on PATH. AWS identity/account/region, DNS ownership, credentials, hosting architecture, billing bounds and production executor are unqualified. Use aws for AWS, gh for GitHub and configured Cloudflare MCP only if DNS is Cloudflare-owned; no DNS fallback is qualified yet. The capability-profile helper was consulted; its suggestions do not activate tools or supply runtime authority. No global plugins were activated. No service-native admission/result binding was supplied for this refinement. `stage: deploy` is unsupported; operational deliverables below deliberately use no stage token and stay blocked until their execution binding is qualified.
+
+The checkout is at da2cec5 with untracked authored docs; remote main is 60c1133f5a411e0085b51120394133d531d95973. Current remote plan content supplies preserved historical receipts; this turn has not rerun their checks. The original local plan is preserved in the initiating checkout and excluded from this public change. Missing local design/devlog files and newer remote ADRs must be reconciled by T9.1 without overwriting authored material. No production operation is inferred from repository evidence.
+
 ## 4. Checkable Work Breakdown
 
 ### Lifecycle operating contract
@@ -63,7 +76,7 @@ Shared plan/apply/claim representation, readiness, and stage routing remain gene
 
 ### E1 - Durable control-plane foundation
 fidelity: executable
-Acceptance: T1.1-T1.19 pass on owned test services; a signed event completes through fixture execution after injected restarts, with stale work denied and budgets retained. Real model/GitHub mutations remain disabled until E2's runtime proof. Initial production deployment is E5, not an implied result of foundation tests.
+Acceptance: T1.1-T1.19 pass on owned test services; a signed event completes through fixture execution after injected restarts, with stale work denied and budgets retained. Real model/GitHub mutations remain disabled until E2's runtime proof. Initial production readiness design is E5; release, deployment and final live acceptance are explicit E9 tasks, not implied results of foundation tests.
 
 - [x] T1.1 Bootstrap the Go module and fail-closed test harness  Owner: coordinator  Est: 60m  kind: agent  verifies: [infrastructure]  deps: []  acc: [Go module loads; integration test fixtures fail with a useful error when required DB/Redis URLs are absent; tool versions and scratch/cache paths are documented.]  lane: agent
   - Scope/contract: [docs/tasks/T1.1.md](tasks/T1.1.md); exact owned files and verification commands are listed there.
@@ -135,28 +148,28 @@ Acceptance: T1.1-T1.19 pass on owned test services; a signed event completes thr
 fidelity: outline
 Build the real OCI supervisor, external metered gateway and credential broker adapter, trusted checkout/config, review output validation, thread/finding persistence, and GitHub review posting. Prove provider request bounds before admitting paid execution.
 Acceptance: A live sandbox review preserves unanchored blockers; no fixer/merge is enabled; credentials/egress/cancellation and billing envelopes are proven for pinned runtime versions.
-- [ ] T2.0 PLAN: expand E2 after its trigger evidence  Owner: coordinator  Est: 60m  kind: plan  delivers: [E2 executable tasks, contracts, and updated use cases]  deps: [T1.19.R]  acc: [E2 is executable with resolved dependencies, owned file scopes and falsifiable acceptance for every row]  blocked-by: [T1.19.R]  blocked: Prior epic implementation exit evidence is not yet available; coordinator-only planning
+- [ ] T2.0 PLAN: expand E2 after its trigger evidence  Owner: coordinator  Est: 60m  kind: plan  delivers: [E2 executable tasks, contracts, and updated use cases]  deps: [T1.19.R]  acc: [E2 is executable with resolved dependencies, owned file scopes and falsifiable acceptance for every row; explicit SDLC stage rows and actual verified-landed exit IDs exist; production capability acceptance maps into T9.12-T9.16]  blocked-by: [T1.19.R]  blocked: Prior epic implementation exit evidence is not yet available; coordinator-only planning
 Trigger: Dependency planning-task completion alone never permits downstream coding; require the prior epic's implementation acceptance, substitute its resulting milestone task IDs, then groom this epic. E5 may start with review-only production while E3/E4 remain disabled.
 
 ### E3 - Bounded B/C remediation
 fidelity: outline
 Expand after E2 live acceptance, adding fixer inputs for CI and persisted findings, target merges without force-push, local correction limits, successor reply handoffs, thread resolution and fingerprint normalization.
 Acceptance: CI-only and review loops stop at shared attempt/cost limits; human pushes and pauses fence all work; benchmark evidence records resolution and review error rates.
-- [ ] T3.0 PLAN: expand E3 after its trigger evidence  Owner: coordinator  Est: 60m  kind: plan  delivers: [E3 executable tasks, contracts, and updated use cases]  deps: [T2.0]  acc: [E3 is executable with resolved dependencies, owned file scopes and falsifiable acceptance for every row]  blocked-by: [T2.0]  blocked: Prior epic implementation exit evidence is not yet available; coordinator-only planning
+- [ ] T3.0 PLAN: expand E3 after its trigger evidence  Owner: coordinator  Est: 60m  kind: plan  delivers: [E3 executable tasks, contracts, and updated use cases]  deps: [T2.0]  acc: [E3 is executable with resolved dependencies, owned file scopes and falsifiable acceptance for every row; explicit SDLC stage rows and actual verified-landed exit IDs exist; production capability acceptance maps into T9.12-T9.16]  blocked-by: [T2.0]  blocked: Prior epic implementation exit evidence is not yet available; coordinator-only planning
 Trigger: Dependency planning-task completion alone never permits downstream coding; require the prior epic's implementation acceptance, substitute its resulting milestone task IDs, then groom this epic. E5 may start with review-only production while E3/E4 remain disabled.
 
 ### E4 - Authoring and guarded merging
 fidelity: outline
 Expand after E3 acceptance, adding issue/spec task enrollment, author retries/escalation, pre-PR budgets, target selection, current-snapshot human approvals and guarded squash merge reconciliation.
 Acceptance: Sandbox issue-to-PR succeeds; no stale/unreviewed/protected-without-human snapshot merges; GitHub rules are verified and never bypassed.
-- [ ] T4.0 PLAN: expand E4 after its trigger evidence  Owner: coordinator  Est: 60m  kind: plan  delivers: [E4 executable tasks, contracts, and updated use cases]  deps: [T3.0]  acc: [E4 is executable with resolved dependencies, owned file scopes and falsifiable acceptance for every row]  blocked-by: [T3.0]  blocked: Prior epic implementation exit evidence is not yet available; coordinator-only planning
+- [ ] T4.0 PLAN: expand E4 after its trigger evidence  Owner: coordinator  Est: 60m  kind: plan  delivers: [E4 executable tasks, contracts, and updated use cases]  deps: [T3.0]  acc: [E4 is executable with resolved dependencies, owned file scopes and falsifiable acceptance for every row; explicit SDLC stage rows and actual verified-landed exit IDs exist; production capability acceptance maps into T9.12-T9.16]  blocked-by: [T3.0]  blocked: Prior epic implementation exit evidence is not yet available; coordinator-only planning
 Trigger: Dependency planning-task completion alone never permits downstream coding; require the prior epic's implementation acceptance, substitute its resulting milestone task IDs, then groom this epic. E5 may start with review-only production while E3/E4 remain disabled.
 
 ### E5 - Production service operations and phased rollout
 fidelity: outline
-Expand when the operator provides an owned production target and E2 live integration evidence. Add provisioning/supervision, TLS/webhook routing, secrets, DB backup/restore, retention, monitoring, escalation notification and phased enablement.
+Target selected: AWS at https://aprl.sire.run. Expand after T9.1 reconciles current delivery evidence and E2 live integration evidence is available; account, region, architecture and cost envelope remain to be qualified. Add provisioning/supervision, TLS/webhook routing, secrets, DB backup/restore, retention, monitoring, escalation notification and phased enablement.
 Acceptance: Deploy to production and observe health, signed deliveries, recovery and control behavior live; approve Phase 2/3 separately after E3/E4 gates; document rollback as disabling autonomy without deleting audit data.
-- [ ] T5.0 PLAN: expand E5 after its trigger evidence  Owner: coordinator  Est: 60m  kind: plan  delivers: [E5 executable tasks, contracts, and updated use cases]  deps: [T2.0]  acc: [E5 is executable with resolved dependencies, owned file scopes and falsifiable acceptance for every row]  blocked-by: [T2.0]  blocked: Prior epic implementation exit evidence is not yet available; coordinator-only planning
+- [ ] T5.0 PLAN: expand E5 after its trigger evidence  Owner: coordinator  Est: 60m  kind: plan  delivers: [E5 executable tasks, contracts, and updated use cases]  deps: [T2.0]  acc: [E5 is executable with resolved dependencies, owned file scopes and falsifiable acceptance for every row; explicit SDLC stage rows and actual verified-landed exit IDs exist; production capability acceptance maps into T9.12-T9.16]  blocked-by: [T2.0]  blocked: Prior epic implementation exit evidence is not yet available; coordinator-only planning
 
 ### E6 - Whole-lifecycle integration and executable review flow
 
@@ -214,6 +227,8 @@ Trigger: Dependency planning-task completion alone never permits downstream codi
 - [x] T8.5 Independently review and land process reservation correction  Owner: independent-reviewer  kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/18 blocked-by: [T8.4]  acc: [exact PR head accepted, guarded merge and actual landed verification]
 - [x] T8.6 Route outbox work by owner and bind cancellation to exact runs  Owner: control-routing kind: agent stage: author delivery-gate: T8.6.R lane: agent blocked-by: [T1.9, T1.11, T8.1.R2] acc: [dispatcher never consumes LABEL_SYNC; router/control cancel intents capture original task/job/run before revocation; no task-only or persisted-PID cancellation; real PostgreSQL regression and corrective handoff]
 - [x] T8.6.R Independently review and deliver outbox ownership correction  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/9 blocked-by: [T8.6] acc: [exact-head independent acceptance, guarded merge and verified actual landing]
+
+### E9 -- Release, AWS production and operational acceptance -> docs/plans/E9-production-sdlc.md (0/16)
 
 ## 5. Parallel Work and Waves
 
@@ -346,6 +361,55 @@ These deferred planning waves are triggers, not a fixed calendar. Expansion inse
 - [x] T6.5.F1 Scheduling reference; acceptance and scope are in the WBS.
 - [x] T6.5.F1.R Scheduling reference; acceptance and scope are in the WBS.
 
+
+#### Wave 22: Production SDLC gate T9.1 (1 coordinator)
+- [ ] T9.1 Scheduling reference; scope, acceptance and dependencies are in E9.
+
+#### Wave 23: Production SDLC gate T9.2 (1 coordinator)
+- [ ] T9.2 Scheduling reference; scope, acceptance and dependencies are in E9.
+
+#### Wave 24: Production SDLC gate T9.3 (1 coordinator)
+- [ ] T9.3 Scheduling reference; scope, acceptance and dependencies are in E9.
+
+#### Wave 25: Production SDLC gate T9.4 (1 coordinator)
+- [ ] T9.4 Scheduling reference; scope, acceptance and dependencies are in E9.
+
+#### Wave 26: Production SDLC gate T9.5 (1 coordinator)
+- [ ] T9.5 Scheduling reference; scope, acceptance and dependencies are in E9.
+
+#### Wave 27: Production SDLC gate T9.6 (1 coordinator)
+- [ ] T9.6 Scheduling reference; scope, acceptance and dependencies are in E9.
+
+#### Wave 28: Production SDLC gate T9.7 (1 coordinator)
+- [ ] T9.7 Scheduling reference; scope, acceptance and dependencies are in E9.
+
+#### Wave 29: Production SDLC gate T9.8 (1 coordinator)
+- [ ] T9.8 Scheduling reference; scope, acceptance and dependencies are in E9.
+
+#### Wave 30: Production SDLC gate T9.9 (1 coordinator)
+- [ ] T9.9 Scheduling reference; scope, acceptance and dependencies are in E9.
+
+#### Wave 31: Production SDLC gate T9.10 (1 coordinator)
+- [ ] T9.10 Scheduling reference; scope, acceptance and dependencies are in E9.
+
+#### Wave 32: Production SDLC gate T9.11 (1 coordinator)
+- [ ] T9.11 Scheduling reference; scope, acceptance and dependencies are in E9.
+
+#### Wave 33: Production SDLC gate T9.12 (1 coordinator)
+- [ ] T9.12 Scheduling reference; scope, acceptance and dependencies are in E9.
+
+#### Wave 34: Production SDLC gate T9.13 (1 coordinator)
+- [ ] T9.13 Scheduling reference; scope, acceptance and dependencies are in E9.
+
+#### Wave 35: Production SDLC gate T9.14 (1 coordinator)
+- [ ] T9.14 Scheduling reference; scope, acceptance and dependencies are in E9.
+
+#### Wave 36: Production SDLC gate T9.15 (1 coordinator)
+- [ ] T9.15 Scheduling reference; scope, acceptance and dependencies are in E9.
+
+#### Wave 37: Production SDLC gate T9.16 (1 coordinator)
+- [ ] T9.16 Scheduling reference; scope, acceptance and dependencies are in E9.
+
 ## 6. Timeline and Milestones
 
 | ID | Milestone | Dependencies | Exit evidence |
@@ -354,7 +418,7 @@ These deferred planning waves are triggers, not a fixed calendar. Expansion inse
 | M2 | Review-only pilot | Expanded E2 exit task | Actual sandbox review, isolation/metering proof and review benchmark |
 | M3 | Closed-loop pilot | Expanded E3 exit task | Shared attempt bounds, verified fixes, pause and human-push tests |
 | M4 | End-to-end pilot | Expanded E4 exit task | Issue-to-PR and guarded merge tests with actual GitHub rules |
-| M5 | Production rollout | Expanded E5 exits plus applicable M2-M4 | Live deployment and recovery evidence for each enabled phase |
+| M5 | Production rollout complete | T9.16 | Every in-scope capability live at https://aprl.sire.run on AWS; recovery, observation and operational acceptance pass |
 
 Foundation estimates total 1650 worker-minutes (27.5 worker-hours), excluding environment setup, review and integration overhead. Plan roughly 4-6 working days for M1 with up to three workers and one coordinator; this is a sequencing estimate, not a deadline commitment. Re-estimate E2-E5 from observed runtime and production evidence rather than assigning speculative dates.
 
@@ -382,6 +446,8 @@ Implementation happens in isolated task-specific worktrees on an owned external 
 Use the claim skill to own tasks and shared plan edits; release only the acquired SHA. Before rewriting the plan, re-read and merge current content. Commit only authorized, task-owned changes; this planning turn makes no commit or PR. Future code merges follow repository CI/rules and require an explicit review. No production environment currently exists, so frontier completion is local/CI foundation acceptance; an epic's user-facing rollout is not shipped until E5 deploys and verifies it live. Deployment, account creation, paid calls and notifications need task-specific authorization at execution time.
 
 ## 9. Progress Log
+
+- 2026 10 04: Refined full SDLC through AWS production at https://aprl.sire.run; added E9/T9.1-T9.16, preserved remote completed receipts and archived the older local draft. All added tasks remain open; no AWS resources, paid execution, release or deployment created.
 
 - 2026 10 01: Created E1/T1.1-T1.19 executable frontier, E2-E5 deferred planning rows, ADRs 001-003, use-case manifest and 19 pending Go task contracts; aligned RFC/ADR 001 to the user's Go requirement; no code or runtime acceptance claimed.
 
@@ -552,3 +618,9 @@ T6.5.R negative review F1: independent comment5976367110 on PR19 exact head e8f0
 T6.5.F1 author handoff: PR19 corrected source95d07b0c5882513957899bccf4dd01869ac3f9bc now proves the exact durable caller/request/policy/grant and subscription-only zero-cost boundary before asserting zero projected accounting and no settlement ID. Assertions cover initial, UNKNOWN, stale/cancelled/expired late-result denial and verified landing; unlanded/UNKNOWN observations cannot gain delivery or landed authority. Local tagged17 normal/17 race passed, zero failures/skips; tagged vet/lint and empty imports passed. Injecting a fabricated settlement failed the actual named new accounting assertion, and byte-exact restored projector passed; failed controller-message checks and load holds are retained and excluded. Source-head hosted CI37176131327 passed487 regular/487 race, zero failures/skips. T6.5.F1.R must independently accept the corrected final PR head with final-head hosted checks, guarded merge and actual-tree/base landing verification; stable T6.5.R remains blocked until that delivery. Scope remains an explicit trusted fixture, with no production financial or runtime activation.
 
 T6.5.F1.R verified delivery: independent acceptance5976552507 reviewed PR19 exact corrected head2d0f72032e57df3711ff0f97c2ae93ea6c2e4fbb/tree56f83e921d823eaff171299bcf684a0b8f98ed37 against base6ca9cfb3f58b19a5c234f6f77f1a9540e8be6dc0. Final-head hosted CI37176804257 passed487 regular/487 race terminal tests, zero failures/skips, with formatting/vet/lint gates passing. Corrected explicit local host suite passed17 normal/17 race, zero failures/skips, tagged vet/lint and empty imports; fabricated-settlement red/restored passed the exact new accounting assertion. Guarded rebase landed9023a4a3e96b9be5039a5d6a1d7a03379aba1747. Reviewer and Root freshly fetched origin/main and independently verified its exact reviewed whole tree and base ancestry. Review claim was released by CAS. F1 is resolved; stable T6.5.R is now delivered. All finite E6 first-class review redesign tasks and E8 recovery tasks are complete. Four future E2–E5 grooming outlines remain separately gated; this receipt qualifies source and explicit fixtures, not production provider/profile/runtime activation.
+
+## Full-SDLC continuation and authority
+
+The execution controller continues across planning triggers, delivery, release, staging, production promotion and operational verification until T9.16 succeeds or a specific unmet prerequisite blocks it. It must report the next runnable task and unblock action, rather than declaring completion at merge. `/plan` writes and checks this graph only; it does not start that execution loop. The destination is now explicit scope; execution still needs an identified AWS account/region, finite cost envelope and qualified authority before billable provisioning or provider use. Do not repeatedly seek routine approval already granted during execution.
+
+E9 scheduling: one coordinator executes T9.1; T9.2 expands the reachable production horizon after reconciliation. T9.3-T9.11 follow their dependencies. T9.12 waits for the actual expanded E2-E5 exits as well as staging evidence. T9.13-T9.16 follow sequentially. Implementation decomposition may use up to three GPT-6-Luna workers with isolated external-SSD worktrees, exact ownership and serialized build leases; operational promotion and final acceptance stay coordinator-owned. No worker is launched by this planning refinement.
