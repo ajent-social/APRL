@@ -407,12 +407,12 @@ These deferred planning waves are triggers, not a fixed calendar. Expansion inse
 - [ ] T9.16 Scheduling reference; scope, acceptance and dependencies are in E9.
 
 #### Wave 38: Host-only result transport adapters (2 GPT-6-Luna workers)
-- [ ] T2.1 Scheduling reference; preflight is coordinator-owned.
-- [ ] T2.2 Scheduling reference; hostauth owns only its package.
-- [ ] T2.3 Scheduling reference; resultclient owns only its package.
+- [x] T2.1 Scheduling reference; preflight is coordinator-owned.
+- [x] T2.2 Scheduling reference; hostauth owns only its package.
+- [x] T2.3 Scheduling reference; resultclient owns only its package.
 #### Wave 39: Result transport acceptance and delivery (1 coordinator)
-- [ ] T2.4 Scheduling reference; real TLS/Postgres API acceptance plus hosted CI.
-- [ ] T2.5 Scheduling reference; independent exact-head review.
+- [x] T2.4 Scheduling reference; real TLS/Postgres API acceptance plus hosted CI.
+- [x] T2.5 Scheduling reference; independent exact-head review.
 - [x] T2.6 Scheduling reference; guarded merge.
 - [x] T2.7 Scheduling reference; verify landed bytes and acceptance.
 #### Wave 40: Next runtime frontier (1 coordinator)
