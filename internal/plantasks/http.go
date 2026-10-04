@@ -358,6 +358,9 @@ func deliveryV1WriteHTTPError(w http.ResponseWriter, status int, code string) {
 	if w == nil {
 		return
 	}
+	if status == http.StatusUnauthorized {
+		w.Header().Set("WWW-Authenticate", "Bearer")
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
