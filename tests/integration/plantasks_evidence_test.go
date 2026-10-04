@@ -393,7 +393,7 @@ func TestPlanTaskLandingEvidenceCommitsTypedProofAndProjectsStableSnapshot(t *te
 
 func TestPlanTaskLandingEvidenceRejectsWrongReviewedHead(t *testing.T) {
 	plantasksEvidenceRejectsMutation(t, "wrong reviewed head", func(e *plantasks.LandedEvidence) {
-		e.Receipt.ReviewedHead = strings.Repeat("c", 40)
+		e.Receipt.ReviewedHead = strings.Repeat("f", 40)
 	})
 }
 
