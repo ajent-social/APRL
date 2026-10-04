@@ -114,6 +114,34 @@ func portableTestPR(head string) *PRBinding {
 	return &PRBinding{Number: 7, URL: "https://github.com/example/portable-project/pull/7", HeadSHA: head, BaseSHA: portableTestBaseSHA, PolicyRevision: "policy:portable-test-v1"}
 }
 
+func portableTestCloneState(t *testing.T, state State) State {
+	t.Helper()
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatalf("marshal lifecycle fixture for clone: %v", err)
+	}
+	var cloned State
+	if err := json.Unmarshal(data, &cloned); err != nil {
+		t.Fatalf("unmarshal lifecycle fixture clone: %v", err)
+	}
+	return cloned
+}
+
+func portableTestLandedEvidence(state State, receipt Receipt, authorID, reviewerID string, verifiedAt time.Time) LandedEvidence {
+	return LandedEvidence{
+		LifecycleID: state.Lifecycle.ID, TaskID: receipt.TaskID, ReceiptID: receipt.ID,
+		Revision: state.Revision, PRNumber: receipt.PR.Number, MergeCommit: receipt.MergeCommit,
+		Receipt: DeliveryV1LandedReceipt{
+			Repository:   "https://github.com/" + state.Lifecycle.Repository.Owner + "/" + state.Lifecycle.Repository.Name,
+			TargetBranch: state.Lifecycle.Repository.Target, PRURL: receipt.PR.URL,
+			ReviewedHead: receipt.PR.HeadSHA, ReviewedBase: receipt.PR.BaseSHA,
+			PolicyRevision: state.Lifecycle.PolicyRevision, LandedCommit: receipt.LandedCommit,
+			SourceDigest: strings.Repeat("a", 64), Reviewer: reviewerID, Author: authorID,
+			Verifier: "host:portable-test", VerifiedAt: verifiedAt.UTC(),
+		},
+	}
+}
+
 func portableTestDocument(t *testing.T, bundle PortableBundle) map[string]any {
 	t.Helper()
 	data, err := json.Marshal(bundle)
@@ -419,6 +447,75 @@ func TestProjectPortableKeepsUnknownAndCancellationOutcomesNonSuccess(t *testing
 	})
 }
 
+func TestProjectPortableRequiresTypedLandingEvidenceForCompletion(t *testing.T) {
+	// These structurally valid SDK proof fields exercise the projection boundary
+	// only; this fixture is not host-authenticated landing qualification.
+	base := portableTestState(t)
+	author := base.Tasks[portableTestAuthorID].Authors[0]
+	pr := portableTestPR(portableTestSourceSHA)
+	portableTestApply(t, &base, portableTestAuthorID, author, OutcomeCodingHandoff, pr, nil, portableTestStart.Add(time.Minute))
+	reviewer := Provenance{ActorID: "agent:landing-reviewer", ActorKind: "agent", AuthoredAt: portableTestStart.Add(2 * time.Minute), SourceRevision: portableTestSourceSHA}
+	portableTestApply(t, &base, portableTestGateID, reviewer, OutcomeApproved, pr, nil, portableTestStart.Add(2*time.Minute))
+	portableTestApply(t, &base, portableTestGateID, reviewer, OutcomeMerged, pr, nil, portableTestStart.Add(3*time.Minute))
+	landedAt := portableTestStart.Add(4 * time.Minute)
+	landedReceipt := Receipt{
+		Version: VersionV1, ID: portableTestReceiptID(4), LifecycleID: base.Lifecycle.ID,
+		TaskID: portableTestGateID, Outcome: OutcomeLanded, Actor: reviewer,
+		PolicyRevision: base.Lifecycle.PolicyRevision, PR: pr, MergeCommit: strings.Repeat("d", 40),
+		LandedCommit: strings.Repeat("d", 40), CreatedAt: landedAt, Detail: "static host-proof fixture",
+	}
+	claim, ok := base.Claims[portableTestGateID]
+	if !ok || claim.ActorID != reviewer.ActorID {
+		t.Fatal("canonical approved/merged gate fixture must retain its admitted reviewer claim")
+	}
+
+	bareState := portableTestCloneState(t, base)
+	if err := bareState.Record(landedReceipt, claim.ClaimSHA, landedAt); err != nil {
+		t.Fatalf("record structurally valid landing without typed host evidence: %v", err)
+	}
+	bareState.Revision++
+	bareState.ProjectionTime = &landedAt
+	if err := bareState.ValidateAt(landedAt); err != nil {
+		t.Fatalf("validate bare landing receipt fixture: %v", err)
+	}
+	bare, err := ProjectPortable(bareState, portableTestAuthoredSource(bareState))
+	if err != nil {
+		t.Fatalf("project bare landing receipt: %v", err)
+	}
+	if got := bare.Snapshot.Executions[0].State; got == "complete" {
+		t.Fatalf("bare landed receipt without typed host evidence projected as %q", got)
+	}
+	if len(bare.Evidence) != 0 || len(bare.Evaluations) != 0 || len(bare.Definition.Requirements) != 0 {
+		t.Fatalf("bare landing receipt created portable qualification: %+v", bare)
+	}
+
+	verifiedState := portableTestCloneState(t, base)
+	verifiedReceipt := landedReceipt
+	evidence := portableTestLandedEvidence(verifiedState, verifiedReceipt, author.ActorID, reviewer.ActorID, landedAt)
+	verifiedReceipt.LandedEvidence = &evidence
+	if err := verifiedState.Record(verifiedReceipt, claim.ClaimSHA, landedAt); err != nil {
+		t.Fatalf("record landing with exact typed evidence fixture: %v", err)
+	}
+	verifiedState.Revision++
+	verifiedState.ProjectionTime = &landedAt
+	if err := verifiedState.ValidateAt(landedAt); err != nil {
+		t.Fatalf("validate typed landing fixture: %v", err)
+	}
+	qualified, err := ProjectPortable(verifiedState, portableTestAuthoredSource(verifiedState))
+	if err != nil {
+		t.Fatalf("project typed landing fixture: %v", err)
+	}
+	if got := qualified.Snapshot.Executions[0].State; got != "complete" {
+		t.Fatalf("typed exact landing evidence projected as %q, want complete", got)
+	}
+	if len(qualified.Evidence) != 0 || len(qualified.Evaluations) != 0 || len(qualified.Definition.Requirements) != 0 {
+		t.Fatalf("portable projection fabricated evidence/evaluation rows from APRL landing authority: %+v", qualified)
+	}
+	if qualified.Definition.Metadata["aprl"] == nil || qualified.Definition.Tasks[0].Metadata["aprl"] == nil {
+		t.Fatal("verified delivery projection omitted APRL stable-gate metadata")
+	}
+}
+
 func TestProjectPortableLateLandingIsAuditOnlyAndExpiryRemainsVisible(t *testing.T) {
 	state := portableTestState(t)
 	author := state.Tasks[portableTestAuthorID].Authors[0]
@@ -435,16 +532,7 @@ func TestProjectPortableLateLandingIsAuditOnlyAndExpiryRemainsVisible(t *testing
 		CreatedAt: portableTestStart.Add(61 * time.Minute),
 	}
 	verifiedAt := portableTestStart.Add(61 * time.Minute)
-	evidence := LandedEvidence{
-		LifecycleID: state.Lifecycle.ID, TaskID: portableTestGateID, ReceiptID: receipt.ID,
-		Revision: state.Revision, PRNumber: pr.Number, MergeCommit: merge,
-		Receipt: DeliveryV1LandedReceipt{
-			Repository: "https://github.com/example/portable-project", TargetBranch: "main", PRURL: pr.URL,
-			ReviewedHead: pr.HeadSHA, ReviewedBase: pr.BaseSHA, PolicyRevision: state.Lifecycle.PolicyRevision,
-			LandedCommit: merge, SourceDigest: strings.Repeat("a", 64), Reviewer: reviewer.ActorID,
-			Author: author.ActorID, Verifier: "host:portable-test", VerifiedAt: verifiedAt,
-		},
-	}
+	evidence := portableTestLandedEvidence(state, receipt, author.ActorID, reviewer.ActorID, verifiedAt)
 	receipt.LandedEvidence = &evidence
 	factAt := portableTestStart.Add(62 * time.Minute)
 	state.LateLandedFacts = map[string]LateLandingFact{
