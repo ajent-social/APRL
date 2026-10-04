@@ -219,7 +219,11 @@ func plantasksHTTPRequest(t *testing.T, client *http.Client, method, endpoint, t
 	if err != nil {
 		t.Fatalf("send HTTPS request: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			t.Errorf("close HTTPS response body: %v", err)
+		}
+	}()
 	responseBody, err := io.ReadAll(io.LimitReader(response.Body, (1<<20)+1))
 	if err != nil {
 		t.Fatalf("read HTTPS response: %v", err)
@@ -449,7 +453,7 @@ func TestPlanTaskDeliveryV1HTTPRedactsUnavailableAuthenticatorErrors(t *testing.
 
 func TestPlanTaskDeliveryV1HTTPOpaquePathIDIsUnescapedExactlyOnce(t *testing.T) {
 	fixture := newPlantasksHTTPFixture(t, &plantasksDelegationPolicy{}, &plantasksHTTPOperationProjector{})
-	raw, request := plantasksDelegationRequest(t)
+	_, request := plantasksDelegationRequest(t)
 	request.DelegationID = "opaque%2Fid"
 	raw, err := plantasks.EncodeDeliveryV1Request(request)
 	if err != nil {
@@ -510,7 +514,7 @@ func TestPlanTaskDeliveryV1HTTPDenialIntentAndCancellationDoNotInventLifecycle(t
 		} {
 			t.Run(test.name, func(t *testing.T) {
 				fixture := newPlantasksHTTPFixture(t, &plantasksDelegationPolicy{}, &plantasksHTTPOperationProjector{})
-				raw, request := plantasksDelegationRequest(t)
+				_, request := plantasksDelegationRequest(t)
 				test.mutate(&request, fixture.manual.Now())
 				raw, err := plantasks.EncodeDeliveryV1Request(request)
 				if err != nil {
