@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -79,7 +81,12 @@ func TestHostResultTransport(t *testing.T) {
 	}
 	server := httptest.NewTLSServer(handler)
 	t.Cleanup(server.Close)
-	client, err := resultclient.New(server.URL+"/internal/results", server.Client(), auth)
+	roots := x509.NewCertPool()
+	roots.AddCert(server.Certificate())
+	transport := &http.Transport{TLSClientConfig: &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}}
+	t.Cleanup(transport.CloseIdleConnections)
+	trustedClient := &http.Client{Transport: transport, Timeout: 8 * time.Second}
+	client, err := resultclient.New(server.URL+"/internal/results", trustedClient, auth)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +104,7 @@ func TestHostResultTransport(t *testing.T) {
 		if token != "" {
 			request.Header.Set("Authorization", "Bearer "+token)
 		}
-		response, err := server.Client().Do(request)
+		response, err := trustedClient.Do(request)
 		if err != nil {
 			t.Fatal(err)
 		}
