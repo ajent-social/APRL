@@ -134,14 +134,14 @@ func startupBridgeSeed(t *testing.T, f *dispatchTestFixture, deliveryID string) 
 	if err != nil {
 		t.Fatalf("construct real process-hold store: %v", err)
 	}
-	hold, err := holds.Reserve(f.ctx, lease, "/owned/startup-bridge-fixture", "startup-bridge-supervisor")
-	if err != nil {
+	if _, err = holds.Reserve(f.ctx, lease, "/owned/startup-bridge-fixture", "startup-bridge-supervisor"); err != nil {
 		t.Fatalf("reserve original host capacity: %v", err)
 	}
-	if hold, err = holds.BeginStart(f.ctx, lease); err != nil {
+	if _, err = holds.BeginStart(f.ctx, lease); err != nil {
 		t.Fatalf("persist original process launch intent: %v", err)
 	}
-	if hold, err = holds.Unknown(f.ctx, lease.RunID, processholds.ReasonSupervisorLost); err != nil {
+	hold, err := holds.Unknown(f.ctx, lease.RunID, processholds.ReasonSupervisorLost)
+	if err != nil {
 		t.Fatalf("retain ambiguous process hold: %v", err)
 	}
 	if err := budget.MarkUnknown(f.ctx, f.db.Pool, f.clock, reservation.ID); err != nil {
