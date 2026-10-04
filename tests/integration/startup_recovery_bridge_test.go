@@ -156,7 +156,7 @@ func startupBridgeSeed(t *testing.T, f *dispatchTestFixture, deliveryID string) 
 }
 
 func startupBridgeClaimRequest(f *dispatchTestFixture, jobID string) leases.ClaimRequest {
-	return leases.ClaimRequest{TaskID: f.taskID, JobID: jobID, TTL: time.Minute, AgentType: "C", PromptHash: dispatchTestPromptHash, SupervisorIdentity: "startup-bridge-supervisor", CredentialID: "startup-bridge-credential"}
+	return leases.ClaimRequest{TaskID: f.taskID, JobID: jobID, TTL: time.Minute, AgentType: "A", PromptHash: dispatchTestPromptHash, SupervisorIdentity: "startup-bridge-supervisor", CredentialID: "startup-bridge-credential"}
 }
 
 type startupBridgeRecovery struct {
