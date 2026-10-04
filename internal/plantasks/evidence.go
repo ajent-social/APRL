@@ -378,7 +378,13 @@ func preserveLandingExtensions(previous, next State, binding *DelegationBinding,
 	}
 	newReceiptProof := false
 	for id, receipt := range next.Receipts {
-		if _, existed := previous.Receipts[id]; existed || receipt.LandedEvidence == nil {
+		if _, existed := previous.Receipts[id]; existed {
+			continue
+		}
+		if receipt.Outcome == OutcomeLanded && binding != nil && receipt.LandedEvidence == nil {
+			return ErrReceiptAudit
+		}
+		if receipt.LandedEvidence == nil {
 			continue
 		}
 		if binding != nil && (binding.Status != DelegationAdmitted || binding.Cancelled || binding.LifecycleID != receipt.LifecycleID) ||
