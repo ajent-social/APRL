@@ -150,10 +150,21 @@ func (d *Delegations) Submit(ctx context.Context, raw []byte) (DelegationBinding
 
 	authorization, err := d.policy.Authorize(bounded, callerID, request)
 	if err != nil {
-		if current, loadErr := d.getForCaller(bounded, callerID, request.DelegationID); loadErr == nil && current.Status != DelegationIntent {
+		if current, loadErr := d.getForCaller(bounded, callerID, request.DelegationID); loadErr == nil && (current.Status != DelegationIntent || current.Cancelled) {
 			return current, nil
 		}
 		return DelegationBinding{}, fmt.Errorf("authorize delegation: %w", ErrDelegationUnavailable)
+	}
+	// Cancellation or another terminal decision may have committed while the
+	// external policy call was in flight. Avoid constructing a lifecycle that
+	// the final locked transaction will necessarily discard; that transaction
+	// still rechecks the row to close the race after this advisory read.
+	current, loadErr := d.getForCaller(bounded, callerID, request.DelegationID)
+	if loadErr != nil {
+		return DelegationBinding{}, fmt.Errorf("recheck delegation after authorization: %w", ErrDelegationUnavailable)
+	}
+	if current.Status != DelegationIntent || current.Cancelled {
+		return current, nil
 	}
 	if authorization.Allowed && !d.store.clock.Now().UTC().Before(request.Spec.Envelope.ExpiresAt) {
 		authorization.Allowed = false
