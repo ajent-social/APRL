@@ -1,6 +1,7 @@
 package plantasks
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -57,13 +58,13 @@ func portableTestState(t *testing.T) State {
 }
 
 func portableTestAuthoredSource(state State) PortableAuthoredSource {
-	raw := []byte("# APRL portable adapter fixture\n\n## Portable parent task\n\n- [ ] Portable parent task: Preserve reviewed delivery authority\n")
+	raw := []byte("# APRL portable adapter fixture\n\n## Portable parent task\n\n- [ ] Portable parent task: Preserve reviewed delivery authority\n  stage: author\n")
 	return PortableAuthoredSource{
 		PlanTitle: "APRL portable adapter fixture", TaskTitle: "Portable parent task",
 		Stage: "author", AuthoredStatus: "pending", Acceptance: "Preserve reviewed delivery authority",
 		SourceRef:      "https://github.com/example/portable-project/blob/" + portableTestSourceSHA + "/docs/plan.md",
 		SourceRevision: state.Lifecycle.Authored.SourceRevision, SourceBytes: raw,
-		TaskRaw: "- [ ] Portable parent task: Preserve reviewed delivery authority",
+		TaskRaw: "- [ ] Portable parent task: Preserve reviewed delivery authority\n  stage: author",
 	}
 }
 
@@ -200,6 +201,103 @@ func TestProjectPortableCoreSourceIdentityBindsExactCallerBytes(t *testing.T) {
 	secondDigest := identity(secondInput, second)
 	if firstDigest == secondDigest || first.Definition.ID != second.Definition.ID {
 		t.Fatalf("altered exact bytes must change content identity while preserving native lifecycle identity: first=%q/%q second=%q/%q", first.Definition.ID, firstDigest, second.Definition.ID, secondDigest)
+	}
+}
+
+func TestProjectPortableObservationDigestRedactsClaimsAndReceiptDetails(t *testing.T) {
+	state := portableTestState(t)
+	author := state.Tasks[portableTestAuthorID].Authors[0]
+	portableTestApply(t, &state, portableTestAuthorID, author, OutcomeCodingHandoff, portableTestPR(portableTestSourceSHA), nil, portableTestStart.Add(time.Minute))
+	if len(state.Claims) == 0 || len(state.Receipts) == 0 {
+		t.Fatal("fixture must contain both a persisted claim token and a receipt detail")
+	}
+	before, err := json.Marshal(state)
+	if err != nil {
+		t.Fatalf("marshal input state before projection: %v", err)
+	}
+	authored := portableTestAuthoredSource(state)
+	first, err := ProjectPortable(state, authored)
+	if err != nil {
+		t.Fatalf("project original sensitive state: %v", err)
+	}
+	mutatedState := State{}
+	encodedState, err := json.Marshal(state)
+	if err != nil {
+		t.Fatalf("clone canonical state: %v", err)
+	}
+	if err := json.Unmarshal(encodedState, &mutatedState); err != nil {
+		t.Fatalf("decode canonical state clone: %v", err)
+	}
+	for id, admission := range mutatedState.Claims {
+		admission.ClaimSHA = strings.Repeat("e", 40)
+		mutatedState.Claims[id] = admission
+	}
+	for id, receipt := range mutatedState.Receipts {
+		receipt.Detail = "different confidential host diagnostic"
+		mutatedState.Receipts[id] = receipt
+	}
+	if err := mutatedState.ValidateAt(portableTestStart.Add(time.Minute)); err != nil {
+		t.Fatalf("redacted comparison state must remain valid: %v", err)
+	}
+	second, err := ProjectPortable(mutatedState, authored)
+	if err != nil {
+		t.Fatalf("project altered sensitive state: %v", err)
+	}
+	firstBytes, err := json.Marshal(first)
+	if err != nil {
+		t.Fatalf("marshal first projection: %v", err)
+	}
+	secondBytes, err := json.Marshal(second)
+	if err != nil {
+		t.Fatalf("marshal second projection: %v", err)
+	}
+	if !bytes.Equal(firstBytes, secondBytes) {
+		t.Fatalf("sensitive claim/detail-only changes altered portable observation or digest\nfirst: %s\nsecond: %s", firstBytes, secondBytes)
+	}
+	firstReasonState := State{}
+	secondReasonState := State{}
+	if err := json.Unmarshal(encodedState, &firstReasonState); err != nil {
+		t.Fatalf("decode first escalation clone: %v", err)
+	}
+	if err := json.Unmarshal(encodedState, &secondReasonState); err != nil {
+		t.Fatalf("decode second escalation clone: %v", err)
+	}
+	firstReasonState.EscalationReason = "host secret reason alpha"
+	secondReasonState.EscalationReason = "host secret reason beta"
+	if err := firstReasonState.ValidateAt(portableTestStart.Add(time.Minute)); err != nil {
+		t.Fatalf("validate first escalated clone: %v", err)
+	}
+	if err := secondReasonState.ValidateAt(portableTestStart.Add(time.Minute)); err != nil {
+		t.Fatalf("validate second escalated clone: %v", err)
+	}
+	firstReason, err := ProjectPortable(firstReasonState, authored)
+	if err != nil {
+		t.Fatalf("project first escalated clone: %v", err)
+	}
+	secondReason, err := ProjectPortable(secondReasonState, authored)
+	if err != nil {
+		t.Fatalf("project second escalated clone: %v", err)
+	}
+	firstReasonBytes, err := json.Marshal(firstReason)
+	if err != nil {
+		t.Fatalf("marshal first escalation projection: %v", err)
+	}
+	secondReasonBytes, err := json.Marshal(secondReason)
+	if err != nil {
+		t.Fatalf("marshal second escalation projection: %v", err)
+	}
+	if !bytes.Equal(firstReasonBytes, secondReasonBytes) {
+		t.Fatalf("secret escalation detail changed portable output instead of a boolean marker\nfirst: %s\nsecond: %s", firstReasonBytes, secondReasonBytes)
+	}
+	if bytes.Contains(firstBytes, []byte(strings.Repeat("f", 40))) || bytes.Contains(firstBytes, []byte("portable test transition")) || bytes.Contains(firstBytes, []byte("different confidential host diagnostic")) {
+		t.Fatalf("portable projection exposed a claim token or receipt detail: %s", firstBytes)
+	}
+	after, err := json.Marshal(state)
+	if err != nil {
+		t.Fatalf("marshal input state after projection: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("portable projection mutated its canonical input state")
 	}
 }
 
@@ -401,6 +499,16 @@ func TestProjectPortableFailsClosedForMissingOrMismatchedAuthoredSource(t *testi
 		{name: "missing source bytes", change: func(source *PortableAuthoredSource) { source.SourceBytes = nil }, want: ErrPortableMissingAuthoredSource},
 		{name: "revision mismatch", change: func(source *PortableAuthoredSource) { source.SourceRevision = portableTestBaseSHA }, want: ErrPortableInvalidSource},
 		{name: "raw task not in source", change: func(source *PortableAuthoredSource) { source.TaskRaw = "a fabricated source row" }, want: ErrPortableInvalidSource},
+		{name: "checkbox status contradicts source", change: func(source *PortableAuthoredSource) { source.AuthoredStatus = "complete" }, want: ErrPortableInvalidSource},
+		{name: "stage marker contradicts source", change: func(source *PortableAuthoredSource) { source.Stage = "fix" }, want: ErrPortableInvalidSource},
+		{name: "missing stage marker", change: func(source *PortableAuthoredSource) {
+			source.TaskRaw = "- [ ] Portable parent task: Preserve reviewed delivery authority"
+		}, want: ErrPortableInvalidSource},
+		{name: "ambiguous checkbox rows", change: func(source *PortableAuthoredSource) {
+			additional := []byte("\n- [ ] Second portable task: Preserve reviewed delivery authority\n")
+			source.SourceBytes = append(source.SourceBytes, additional...)
+			source.TaskRaw += string(additional)
+		}, want: ErrPortableInvalidSource},
 		{name: "localhost trailing dot", change: func(source *PortableAuthoredSource) { source.SourceRef = "https://localhost./plan.md" }, want: ErrPortableInvalidSource},
 		{name: "loopback IPv4 trailing dot", change: func(source *PortableAuthoredSource) { source.SourceRef = "https://127.0.0.1./plan.md" }, want: ErrPortableInvalidSource},
 		{name: "IPv6 zone identifier", change: func(source *PortableAuthoredSource) { source.SourceRef = "https://[fe80::1%25en0]/plan.md" }, want: ErrPortableInvalidSource},
