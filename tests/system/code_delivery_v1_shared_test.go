@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -51,6 +50,7 @@ type deliveryV1Fixture struct {
 	factory                       *deliveryV1InitialFactory
 	capture                       *deliveryV1CapturedService
 	delegated                     bool
+	droppedReply                  chan error
 }
 
 func newDeliveryV1Fixture(t *testing.T, delegated bool) *deliveryV1Fixture {
@@ -104,7 +104,33 @@ func newDeliveryV1Fixture(t *testing.T, delegated bool) *deliveryV1Fixture {
 	if err != nil {
 		t.Fatalf("construct composed HTTPS handler: %v", err)
 	}
-	f.server = httptest.NewTLSServer(handler)
+	f.droppedReply = make(chan error, 1)
+	f.server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-APRL-Fixture-Drop-Reply") != "1" {
+			handler.ServeHTTP(w, r)
+			return
+		}
+		buffered := &deliveryV1LostReplyWriter{ResponseWriter: w}
+		handler.ServeHTTP(buffered, r)
+		if buffered.status >= 200 && buffered.status < 300 {
+			hijacker, ok := w.(http.Hijacker)
+			if !ok {
+				f.droppedReply <- errors.New("fixture response cannot hijack")
+				return
+			}
+			connection, _, hijackErr := hijacker.Hijack()
+			if hijackErr != nil {
+				f.droppedReply <- hijackErr
+				return
+			}
+			f.droppedReply <- connection.Close()
+			return
+		}
+		w.WriteHeader(buffered.status)
+		if _, writeErr := w.Write(buffered.body.Bytes()); writeErr != nil {
+			f.droppedReply <- writeErr
+		}
+	}))
 	t.Cleanup(f.server.Close)
 	f.client = f.server.Client()
 	f.client.Timeout = 10 * time.Second
@@ -153,6 +179,66 @@ func (f *deliveryV1Fixture) submit(t *testing.T) {
 		t.Fatalf("decode submission observation: %v", err)
 	}
 	f.lifecycleID = observation.LifecycleID
+}
+
+// submitLostReply loses the actual TLS acknowledgement after the real handler
+// committed its binding and successfully projected a response, before headers
+// or body reach the client. GET then recovers the durable lifecycle identity.
+func (f *deliveryV1Fixture) submitLostReply(t *testing.T) {
+	t.Helper()
+	if !f.delegated {
+		t.Fatal("response loss requires delegated HTTPS")
+	}
+	raw, err := plantasks.EncodeDeliveryV1Request(f.request)
+	if err != nil {
+		t.Fatalf("encode lost-reply request: %v", err)
+	}
+	f.raw = raw
+	req, err := http.NewRequestWithContext(f.ctx, http.MethodPut, f.server.URL+"/v1/delegations/"+f.request.DelegationID, bytes.NewReader(raw))
+	if err != nil {
+		t.Fatalf("construct lost-reply request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+f.caller)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-APRL-Fixture-Drop-Reply", "1")
+	response, requestErr := f.client.Do(req)
+	if response != nil {
+		if closeErr := response.Body.Close(); closeErr != nil {
+			t.Errorf("close unexpected lost-reply response: %v", closeErr)
+		}
+	}
+	if requestErr == nil {
+		t.Fatal("actual PUT acknowledgement was not lost")
+	}
+	select {
+	case dropErr := <-f.droppedReply:
+		if dropErr != nil {
+			t.Fatalf("fixture lost-reply boundary failed: %v", dropErr)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("handler did not reach committed lost-reply boundary")
+	}
+	observation := f.observation(t)
+	f.lifecycleID = observation.LifecycleID
+}
+
+type deliveryV1LostReplyWriter struct {
+	http.ResponseWriter
+	status int
+	body   bytes.Buffer
+}
+
+func (w *deliveryV1LostReplyWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (w *deliveryV1LostReplyWriter) WriteHeader(status int) {
+	if w.status == 0 {
+		w.status = status
+	}
+}
+func (w *deliveryV1LostReplyWriter) Write(data []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return w.body.Write(data)
 }
 
 func (f *deliveryV1Fixture) httpRequest(t *testing.T, method, path, caller string, body []byte) (int, []byte) {
