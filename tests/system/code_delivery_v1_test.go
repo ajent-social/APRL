@@ -190,6 +190,7 @@ func TestCodeDeliveryV1StandaloneAndDelegatedLifecycleThroughGenericShim(t *test
 				t.Fatalf("author handoff lost actor/revision provenance: %+v", authorReceipt)
 			}
 
+			f.setActor(f.reviewer)
 			afterHandoff := shim.List(t)
 			codeDeliveryV1RequireStableGate(t, afterHandoff, gateID, gateClaimID)
 			codeDeliveryV1RequireFollowup(t, followup, afterHandoff, false)
