@@ -86,6 +86,9 @@ func (r *LateLandingRecorder) Record(ctx context.Context, lifecycleID string, re
 	if err != nil {
 		return err
 	}
+	if binding.DelegationID != "" && (binding.LifecycleID != lifecycleID || binding.LifecycleRevision != state.Revision || binding.State == nil || !reflect.DeepEqual(*binding.State, state)) {
+		return ErrConflict
+	}
 	if err := validateLateLandingEligibility(state, binding, r.store.clock.Now().UTC()); err != nil {
 		return err
 	}
@@ -364,7 +367,7 @@ func preserveLandingExtensions(previous, next State, binding *DelegationBinding,
 		if _, existed := previous.Receipts[id]; existed || receipt.LandedEvidence == nil {
 			continue
 		}
-		if binding == nil || binding.Status != DelegationAdmitted || binding.Cancelled || binding.LifecycleID != receipt.LifecycleID ||
+		if binding != nil && (binding.Status != DelegationAdmitted || binding.Cancelled || binding.LifecycleID != receipt.LifecycleID) ||
 			verified == nil || verified.ReceiptID != id || !reflect.DeepEqual(*receipt.LandedEvidence, verified.Evidence) {
 			return ErrReceiptAudit
 		}
