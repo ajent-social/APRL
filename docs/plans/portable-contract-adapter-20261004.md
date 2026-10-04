@@ -11,9 +11,9 @@ Contract pin: public Wazi source f04497a3fcde3c1b78d09b683405d4d9f7645efc; diges
 - [x] PC-APRL.0 — stage: preflight; deps: none. Reconcile current main, claims, isolated external-SSD checkout, source freeze and host resource constraints. Original authored checkout preserved. Local Go held while load exceeds 10.
 - [x] PC-APRL.1 — stage: implement; deps: PC-APRL.0. Add version-pinned native observation adapter and explicit authored-source boundary. Preserve stable correction gate, PR/head/base, all contributor lineage and audit-only late facts in namespaced metadata. Reject invalid/missing bindings rather than invent authority.
 - [x] PC-APRL.2 — stage: verify; deps: PC-APRL.1. Exercise author handoff, review/fix/rereview, stable landing gate, cancellation/unknown and audit-only late facts; validate serialized examples against corrected owning validator. Run source CI and appropriate local tests under resource gates; distinguish each evidence class.
-- [ ] PC-APRL.3 — stage: review; deps: PC-APRL.2. Independent GPT-6-Luna review of exact candidate head/base and policy, trust boundaries and contributor independence. Findings create fix and re-review tasks; merge remains blocked.
-- [ ] PC-APRL.4 — stage: merge; deps: PC-APRL.3. Guarded rebase PR merge with required CI and accepted independent review.
-- [ ] PC-APRL.5 — stage: verify-landed; deps: PC-APRL.4. Fetch remote main, verify reviewed bytes landed and record receipts in this plan and shared channel. Release exact claims.
+- [x] PC-APRL.3 — stage: review; deps: PC-APRL.2. Independent GPT-6-Luna review of exact candidate head/base and policy, trust boundaries and contributor independence. Findings create fix and re-review tasks; merge remains blocked.
+- [x] PC-APRL.4 — stage: merge; deps: PC-APRL.3. Guarded rebase PR merge with required CI and accepted independent review.
+- [x] PC-APRL.5 — stage: verify-landed; deps: PC-APRL.4. Fetch remote main, verify reviewed bytes landed and record receipts in this plan and shared channel. Release exact claims.
 
 ## Acceptance
 
@@ -40,7 +40,7 @@ Verification iteration CI37186446961 at0f90677: compiler, vet and lint pass. Nat
 ## Early independent review correction
 
 - [x] PC-APRL.RF1 — stage: implement; deps: PC-APRL.1. Resolve reviewer provenance finding: original owner16b66e5 source freeze is local and not publicly retrievable. Public normative pin is f04497a3fcde3c1b78d09b683405d4d9f7645efc, which the coordinator independently verified across all66 normative paths and aggregate digest7582512f. Contract digest/bytes and adapter code remain unchanged. Docs now identify public retrieval pin explicitly and distinguish historical local freeze.
-- [ ] PC-APRL.RR1 — stage: review; deps: PC-APRL.RF1, PC-APRL.2. Independent exact-head re-review of public pin correction and final source/test candidate. PC-APRL.4 additionally requires PC-APRL.RR1 accepted; no negative review finding permits merge.
+- [x] PC-APRL.RR1 — stage: review; deps: PC-APRL.RF1, PC-APRL.2. Independent exact-head re-review of public pin correction and final source/test candidate. PC-APRL.4 additionally requires PC-APRL.RR1 accepted; no negative review finding permits merge.
 
 - [x] PC-APRL.RF2 — stage: implement; deps: PC-APRL.1. Independent source attribution finding: arbitrary caller bytes must not be attributed to the lifecycle Git revision. Core source ref/revision become content-addressed exact bytes; claimed URL/revision remain explicitly unverified namespaced caller-source observations. Native state/code revision and digest remain separate.
 - [x] PC-APRL.RF3 — stage: implement; deps: PC-APRL.1. Independent reference finding: normalize terminal DNS root dots and reject IPv6 zones/ambiguous labels before public-host/IP checks; add causal negative cases for localhost-dot, loopback-dot and link-local zone forms.
@@ -63,3 +63,11 @@ Root causal privacy replay admitted at fresh load7.03: pre-fix source d774ec4 fa
 PC-APRL.2 and RR1 include CF1 verification and independent review. Exact b2ca6f9 CI failed only the existing callback/commit race after compiler/vet/lint pass; one same-head rerun is underway, with diagnosed fixture repair proceeding rather than treating intermittent green as a permanent fix. Add direct canonical successful typed-landing and missing-proof non-success projection coverage before final acceptance.
 
 Verification accepted for source/test scope: exact b2ca6f9 CI37187657624 rerun passes519 regular and519 race terminal tests, zero failures/skips. Independent review5404973729 accepted that head/base27ee4b8. CF1 test-only diff f0a95aa and typed landing regression b42b34d independently reviewed with no findings; updated full local plantasks package passes, and focused real PG/Redis service-role case passes at fresh load4.94. Require fresh final exact-head CI and review on the integrated metadata/test candidate before merge; previous receipts do not authorize an unreviewed head. No local multi-package test or production/runtime activation occurred.
+
+## Completed delivery
+
+PR21 rebase-merged to main at5c45dec345cee21a48dc81ccc74b3ec293795848. Independent final review: https://github.com/ajent-social/APRL/pull/21#pullrequestreview-5405026231, exact head1a397c01d207ae8bb3167c8394b00d32a0c9e58c versus base27ee4b8f62d847add3cd5b99a2d20bb6d5df0c45. All RF1–RF5 and CF1 were accepted; no finding waived. Exact-head CI37188421895 passes520 regular and520 race tests with zero failures/skips, plus format/vet/lint. The independent reviewer performed guarded REBASE merge only after both gates passed.
+
+Coordinator fresh fetch independently confirms remote main5c45dec3, reviewed base ancestry and full tree equality with reviewed candidate1a397c0 (treee1d6073a67dd4e0b1f3543a5dcbb98298e5c71e7). Local full plantasks and focused real PG/Redis service-role checks passed under load guards; serializer golden byte comparison and final owner-landed offline validator are qualified for this bounded source projection. No private host test shim, authenticated interoperability, provider activation or production deployment was newly qualified. Original authored checkout and all concurrent work remain preserved.
+
+All13 scoped plan tasks are complete. This documentation-only closeout records already-observed delivery, not future merge/landing promises; it adds no source or runtime change. The external temporary verifier can be reconstructed from durable owning Wazi source47b9d91 and frozen public normative pinf04497a3/digest7582512f.
