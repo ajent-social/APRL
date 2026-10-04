@@ -109,6 +109,26 @@ func TestSubmitPostsSingleAuthenticatedResult(t *testing.T) {
 	}
 }
 
+func TestSubmitAcceptsNormalizedOperationUUID(t *testing.T) {
+	result := validTestResult()
+	result.OperationID = "ABCDEFAB-ABCD-4ABC-8ABC-ABCDEFABCDEF"
+	normalized := strings.ToLower(result.OperationID)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"accepted":true,"operation_id":%q}`, normalized)
+	}))
+	t.Cleanup(server.Close)
+	client, err := New(server.URL+resultsPath, trustedTestHTTPClient(t, server), &staticTokenSource{token: testToken})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	t.Cleanup(client.CloseIdleConnections)
+	accepted, err := client.Submit(context.Background(), validTestPrincipal(), result)
+	if err != nil || accepted.OperationID != normalized {
+		t.Fatalf("Submit = %#v, %v", accepted, err)
+	}
+}
+
 func TestSubmitMapsHostStatuses(t *testing.T) {
 	cases := []struct {
 		name   string

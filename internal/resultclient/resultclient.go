@@ -215,7 +215,7 @@ func (c *Client) Submit(ctx context.Context, principal results.Principal, result
 		return results.Accepted{}, ErrProtocol
 	}
 	accepted, err := decodeAccepted(responseBody)
-	if err != nil || !accepted.Accepted || accepted.OperationID != result.OperationID {
+	if err != nil || !accepted.Accepted || !strings.EqualFold(accepted.OperationID, result.OperationID) {
 		return results.Accepted{}, ErrProtocol
 	}
 	return results.Accepted{OperationID: accepted.OperationID}, nil
