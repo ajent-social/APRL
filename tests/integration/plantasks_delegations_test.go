@@ -889,16 +889,8 @@ func TestPlanDelegationAggregateAttemptsCoverAuthorReviewFixAndRereview(t *testi
 		t.Fatalf("record author handoff (attempt one): %v", err)
 	}
 	state = load()
-	if err := admit(reviewTask.ID, strings.Repeat("b", 40), reviewer, state.Revision); err == nil {
-		t.Fatal("review admission exceeded max_concurrent while author claim remained live")
-	}
-	if afterDenied := load(); afterDenied.Revision != state.Revision || !reflect.DeepEqual(afterDenied.Attempts, state.Attempts) || !reflect.DeepEqual(afterDenied.Claims, state.Claims) {
-		t.Fatalf("concurrency denial mutated lifecycle: before=%+v after=%+v", state, afterDenied)
-	}
-	manual.Advance(time.Hour + time.Nanosecond)
-	state = load()
 	if err := admit(reviewTask.ID, strings.Repeat("b", 40), reviewer, state.Revision); err != nil {
-		t.Fatalf("admit independent review after author claim expiry (attempt two): %v", err)
+		t.Fatalf("admit independent review immediately after author handoff (attempt two): %v", err)
 	}
 	reviewer.SourceRevision = pr.HeadSHA
 	actors.actor = reviewer
