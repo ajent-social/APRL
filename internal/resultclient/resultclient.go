@@ -151,6 +151,11 @@ func (c *Client) Submit(ctx context.Context, principal results.Principal, result
 		return results.Accepted{}, ErrProtocol
 	}
 
+	body, err := json.Marshal(result)
+	if err != nil || len(body) > maxMessageBytes {
+		return results.Accepted{}, ErrProtocol
+	}
+
 	requestContext, cancel := context.WithTimeout(ctx, maxRequestTimeout)
 	defer cancel()
 	token, err := c.tokens.Token(requestContext, principal)
@@ -162,10 +167,6 @@ func (c *Client) Submit(ctx context.Context, principal results.Principal, result
 	}
 	if !validBearerToken(token) {
 		return results.Accepted{}, ErrUnauthorized
-	}
-	body, err := json.Marshal(result)
-	if err != nil || len(body) > maxMessageBytes {
-		return results.Accepted{}, ErrProtocol
 	}
 
 	request, err := http.NewRequestWithContext(requestContext, http.MethodPost, c.endpoint.String(), bytes.NewReader(body))
@@ -290,7 +291,7 @@ func decodeAccepted(body []byte) (acceptedResponse, error) {
 	}
 	var accepted bool
 	var operationID string
-	if json.Unmarshal(fields["accepted"], &accepted) != nil || json.Unmarshal(fields["operation_id"], &operationID) != nil {
+	if json.Unmarshal(fields["accepted"], &accepted) != nil || json.Unmarshal(fields["operation_id"], &operationID) != nil || operationID == "" {
 		return acceptedResponse{}, ErrProtocol
 	}
 	return acceptedResponse{Accepted: accepted, OperationID: operationID}, nil

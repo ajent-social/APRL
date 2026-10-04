@@ -50,7 +50,7 @@ func TestAuthenticateSupervisorRejectsInvalidCredentialsAndClaims(t *testing.T) 
 		{name: "unknown claim", token: signedToken(t, "active", key, unknownClaimPayload(now, principal)), verifyAt: now},
 		{name: "trailing claim data", token: signedToken(t, "active", key, append(marshalClaims(testClaims(now, principal)), []byte(" {}")...)), verifyAt: now},
 		{name: "padded base64", token: validToken + "=", verifyAt: now},
-		{name: "uppercase principal UUID", token: signedToken(t, "active", key, marshalClaims(changeClaims(testClaims(now, principal), func(cl *claims) { cl.TaskID = strings.ToUpper(cl.TaskID) }))), verifyAt: now},
+		{name: "uppercase principal UUID", token: signedToken(t, "active", key, marshalClaims(changeClaims(testClaims(now, principal), func(cl *claims) { cl.TaskID = "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA" }))), verifyAt: now},
 	}
 
 	for _, tt := range tests {
