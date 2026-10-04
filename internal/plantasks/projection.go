@@ -167,9 +167,28 @@ func projectDeliveryChild(state State, task Task, at time.Time) DeliveryV1ChildT
 	for _, dep := range task.Dependencies {
 		child.DependsOn = append(child.DependsOn, dep.TaskID)
 	}
-	if task.PR != nil {
-		child.PRURL = task.PR.URL
-		child.HeadCommit = task.PR.HeadSHA
+	pr := task.PR
+	if pr == nil && state.Completed[task.ID] == OutcomeCodingHandoff {
+		// Author and fix handoffs are carried by their immutable receipt. Their
+		// task snapshot need not contain a PR, and CurrentPR may already refer
+		// to a later correction, so project this task's own verified handoff.
+		var latest *Receipt
+		for _, receipt := range state.Receipts {
+			if receipt.TaskID != task.ID || receipt.LifecycleID != state.Lifecycle.ID || receipt.Outcome != OutcomeCodingHandoff || receipt.PR == nil {
+				continue
+			}
+			if latest == nil || receipt.CreatedAt.After(latest.CreatedAt) || (receipt.CreatedAt.Equal(latest.CreatedAt) && receipt.ID > latest.ID) {
+				matched := receipt
+				latest = &matched
+			}
+		}
+		if latest != nil {
+			pr = latest.PR
+		}
+	}
+	if pr != nil {
+		child.PRURL = pr.URL
+		child.HeadCommit = pr.HeadSHA
 	}
 	if _, complete := state.Completed[task.ID]; complete {
 		if state.Completed[task.ID] == OutcomeChangesRequest {
