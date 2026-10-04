@@ -43,7 +43,7 @@ func TestHostResultTransport(t *testing.T) {
 		t.Fatal(err)
 	}
 	var taskID string
-	if err := db.Pool.QueryRow(ctx, `INSERT INTO tasks(org_id,repo_full_name,source_key,owner_id,state,policy_version) VALUES($1,'owner/host-result',$1,'host','AUTHORING','host-result-v1') RETURNING id::text`, org).Scan(&taskID); err != nil {
+	if err := db.Pool.QueryRow(ctx, `INSERT INTO tasks(org_id,repo_full_name,source_key,owner_id,state,policy_version) VALUES($1,'owner/host-result',$2,'host','AUTHORING','host-result-v1') RETURNING id::text`, org, org).Scan(&taskID); err != nil {
 		t.Fatal(err)
 	}
 	jobID := fmt.Sprintf("%08x-2222-4222-8222-%012x", seed>>32, seed&0xffffffffffff)
