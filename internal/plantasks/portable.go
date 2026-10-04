@@ -26,9 +26,12 @@ const (
 )
 
 var (
-	ErrPortableInvalidState          = errors.New("invalid portable lifecycle state")
+	// ErrPortableInvalidState indicates that the persisted lifecycle cannot be projected safely.
+	ErrPortableInvalidState = errors.New("invalid portable lifecycle state")
+	// ErrPortableMissingAuthoredSource indicates required source-authoritative fields are absent.
 	ErrPortableMissingAuthoredSource = errors.New("portable authored source is incomplete")
-	ErrPortableInvalidSource         = errors.New("portable authored source is invalid")
+	// ErrPortableInvalidSource indicates authored source conflicts with persisted bindings.
+	ErrPortableInvalidSource = errors.New("portable authored source is invalid")
 )
 
 // PortableMappingError identifies a missing or inconsistent authored binding
@@ -177,8 +180,6 @@ type PortableExecution struct {
 	ExecutionUnitID string `json:"executionUnitId,omitempty"`
 }
 
-// Evidence and evaluations are typed v0 slots; this projection always returns
-// empty, non-nil slices rather than inventing qualified observations.
 // PortableEvidence is a typed v0 slot; no evidence is qualified by this adapter.
 type PortableEvidence struct{}
 
@@ -392,10 +393,15 @@ func validatePortableAuthoredSource(state State, authored PortableAuthoredSource
 	if len(authored.SourceBytes) == 0 || strings.TrimSpace(authored.TaskRaw) == "" {
 		return missing("source_bytes_or_task_raw")
 	}
-	for field, value := range map[string]string{"plan_title": authored.PlanTitle, "task_title": authored.TaskTitle, "stage": authored.Stage, "acceptance": authored.Acceptance, "source_ref": authored.SourceRef, "source_revision": authored.SourceRevision} {
+	for field, value := range map[string]string{"plan_title": authored.PlanTitle, "task_title": authored.TaskTitle, "stage": authored.Stage, "source_ref": authored.SourceRef, "source_revision": authored.SourceRevision} {
 		if !utf8.ValidString(value) || strings.ContainsAny(value, "\x00\r\n") {
 			return &PortableMappingError{Field: field, Reason: "must be valid single-line UTF-8", Cause: ErrPortableInvalidSource}
 		}
+	}
+	// Acceptance is opaque authored text and may span lines; only invalid UTF-8
+	// or NUL would make the source fragment unsafe to preserve.
+	if !utf8.ValidString(authored.Acceptance) || strings.ContainsRune(authored.Acceptance, '\x00') {
+		return &PortableMappingError{Field: "acceptance", Reason: "must be valid UTF-8 without NUL", Cause: ErrPortableInvalidSource}
 	}
 	if !utf8.Valid(authored.SourceBytes) || !utf8.ValidString(authored.TaskRaw) || !bytes.Contains(authored.SourceBytes, []byte(authored.TaskRaw)) {
 		return &PortableMappingError{Field: "source_bytes", Reason: "raw task fragment must be valid UTF-8 present in source bytes", Cause: ErrPortableInvalidSource}
@@ -648,7 +654,7 @@ func portableContributorFrom(value Provenance) portableContributor {
 }
 
 func portablePR(value PRBinding) portablePullRequest {
-	return portablePullRequest{Number: value.Number, URL: value.URL, HeadSHA: value.HeadSHA, BaseSHA: value.BaseSHA, PolicyRevision: value.PolicyRevision}
+	return portablePullRequest(value)
 }
 
 func portableProof(value LandedEvidence) portableLandingProof {
