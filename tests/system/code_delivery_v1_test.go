@@ -313,6 +313,26 @@ func TestCodeDeliveryV1AdmissionDenialsPreserveDurableState(t *testing.T) {
 		shim.Release(t, author.TaskID, claim)
 	})
 
+	t.Run("authenticated runtime policy", func(t *testing.T) {
+		f := newDeliveryV1Fixture(t, true)
+		f.submit(t)
+		shim := newDeliveryV1Shim(t, f)
+		initial := shim.List(t)
+		author := codeDeliveryV1VisibleTask(t, f, initial, plantasks.StageAuthor, 0)
+		claim := shim.Claim(t, author.TaskID, f.author.ActorID)
+		f.setActor(f.author)
+		fresh := shim.List(t)
+		f.policy.setAllowed(false)
+		before := f.load(t)
+		beforeBinding := f.binding(t)
+		providerCalls := shim.ProviderCalls()
+		response, callErr := shim.Call(map[string]any{"action": "admit", "lifecycle_id": f.lifecycleID, "task_id": author.TaskID, "expected_revision": fresh.Revision, "claim_sha": claim, "expires_at": f.request.Spec.Envelope.ExpiresAt.Format(time.RFC3339Nano)})
+		codeDeliveryV1RequireProviderDenial(t, shim, providerCalls, response, callErr)
+		codeDeliveryV1AssertUnchanged(t, f, before, beforeBinding)
+		f.policy.setAllowed(true)
+		shim.Release(t, author.TaskID, claim)
+	})
+
 	t.Run("exact expiry", func(t *testing.T) {
 		f := newDeliveryV1Fixture(t, true)
 		f.submit(t)
