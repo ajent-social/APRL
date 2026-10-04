@@ -144,7 +144,7 @@ Acceptance: T1.1-T1.19 pass on owned test services; a signed event completes thr
 - [x] T1.19.R Independently review and deliver T1.19 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/12 blocked-by: [T1.19] acc: [exact-head independent acceptance, guarded merge and actual landing verified]
   - S1.19.1 Verify: Make a required integration fixture absent and assert CI fails rather than passes/skips. Run the scoped tests, then formatter/linter checks after code changes.
 
-### E2 -- Review-only B with verified runtime and metering -> docs/plans/E2-review-runtime.md (7/13)
+### E2 -- Review-only B with verified runtime and metering -> docs/plans/E2-review-runtime.md (11/13)
 
 ### E3 - Bounded B/C remediation
 fidelity: outline
@@ -413,8 +413,8 @@ These deferred planning waves are triggers, not a fixed calendar. Expansion inse
 #### Wave 39: Result transport acceptance and delivery (1 coordinator)
 - [ ] T2.4 Scheduling reference; real TLS/Postgres API acceptance plus hosted CI.
 - [ ] T2.5 Scheduling reference; independent exact-head review.
-- [ ] T2.6 Scheduling reference; guarded merge.
-- [ ] T2.7 Scheduling reference; verify landed bytes and acceptance.
+- [x] T2.6 Scheduling reference; guarded merge.
+- [x] T2.7 Scheduling reference; verify landed bytes and acceptance.
 #### Wave 40: Next runtime frontier (1 coordinator)
 - [ ] T2.8 Scheduling reference; expand remaining OCI/GitHub/provider/host factory work.
 - [ ] T2.9 Scheduling reference; real live review pilot remains blocked on qualified inputs and expanded actual exits.
@@ -638,5 +638,7 @@ E9 scheduling: one coordinator executes T9.1; T9.2 expands the reachable product
 
 #### Wave 41: Review F1 correction (1 coordinator)
 - [x] T2.5.F1 Scheduling reference; correct UUID normalization.
-- [ ] T2.10 Scheduling reference; verify corrected candidate.
-- [ ] T2.5.F1.R Scheduling reference; independent exact-head re-review.
+- [x] T2.10 Scheduling reference; verify corrected candidate.
+- [x] T2.5.F1.R Scheduling reference; independent exact-head re-review.
+
+Execution closeout (2026 10 04): PR24 result transport source independently reviewed, CI37196546731 passed 613 regular/613 race tests with zero failures/skips, and exact candidate tree verified on remote main af9f10647b564fcc9e1783af69173df0df37dd06. E2 first horizon is delivered; T2.8/T2.9 and E9 production gates remain open on explicit operator bindings. Production is not deployed.
