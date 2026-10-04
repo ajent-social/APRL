@@ -275,12 +275,15 @@ func validateLandedEvidence(state State, receipt Receipt, evidence LandedEvidenc
 	}
 	for _, candidate := range state.Tasks {
 		for _, author := range candidate.Authors {
-			if author.ActorID == evidence.Receipt.Reviewer {
-				return fmt.Errorf("landing reviewer is a lifecycle contributor: %w", ErrReceiptAudit)
+			if author.ActorID == evidence.Receipt.Reviewer || author.ActorID == evidence.Receipt.Verifier {
+				return fmt.Errorf("landing reviewer or verifier is a lifecycle contributor: %w", ErrReceiptAudit)
 			}
 		}
 		if candidate.Actor.ActorID == evidence.Receipt.Reviewer && (candidate.Stage == StageAuthor || candidate.Stage == StageFix) {
 			return fmt.Errorf("landing reviewer authored code: %w", ErrReceiptAudit)
+		}
+		if candidate.Actor.ActorID == evidence.Receipt.Verifier && (candidate.Stage == StageAuthor || candidate.Stage == StageFix) {
+			return fmt.Errorf("landing verifier authored code: %w", ErrReceiptAudit)
 		}
 	}
 	contributor := false
@@ -303,6 +306,9 @@ func validateLandedEvidence(state State, receipt Receipt, evidence LandedEvidenc
 		}
 		if (priorTask.Stage == StageAuthor || priorTask.Stage == StageFix) && prior.Actor.ActorID == evidence.Receipt.Reviewer {
 			return fmt.Errorf("landing reviewer contributed coding work: %w", ErrReceiptAudit)
+		}
+		if (priorTask.Stage == StageAuthor || priorTask.Stage == StageFix) && prior.Actor.ActorID == evidence.Receipt.Verifier {
+			return fmt.Errorf("landing verifier contributed coding work: %w", ErrReceiptAudit)
 		}
 	}
 	if !contributor || evidence.Receipt.Verifier == evidence.Receipt.Reviewer || evidence.Receipt.Verifier == evidence.Receipt.Author {
@@ -338,6 +344,9 @@ func validateLandingExtensions(state State) error {
 		}
 	}
 	for id, fact := range state.LateLandedFacts {
+		if _, duplicate := state.Receipts[id]; duplicate {
+			return ErrReceiptAudit
+		}
 		if id != fact.ID || id != fact.Receipt.ID || fact.Receipt.Outcome != OutcomeLanded || fact.HostActor == "" || fact.ObservedAt.IsZero() || fact.Receipt.LandedEvidence == nil || validateLandedEvidenceShape(*fact.Receipt.LandedEvidence) != nil || !validateLandingEvidenceDigest(*fact.Receipt.LandedEvidence) || fact.Receipt.LandedEvidence.ReceiptID != fact.Receipt.ID || fact.Receipt.LandedEvidence.TaskID != fact.Receipt.TaskID || fact.Receipt.LandedEvidence.LifecycleID != fact.Receipt.LifecycleID || fact.Receipt.LandedEvidence.Revision > state.Revision {
 			return ErrReceiptAudit
 		}
@@ -363,6 +372,7 @@ func preserveLandingExtensions(previous, next State, binding *DelegationBinding,
 			return ErrImmutable
 		}
 	}
+	newReceiptProof := false
 	for id, receipt := range next.Receipts {
 		if _, existed := previous.Receipts[id]; existed || receipt.LandedEvidence == nil {
 			continue
@@ -371,6 +381,7 @@ func preserveLandingExtensions(previous, next State, binding *DelegationBinding,
 			verified == nil || verified.ReceiptID != id || !reflect.DeepEqual(*receipt.LandedEvidence, verified.Evidence) {
 			return ErrReceiptAudit
 		}
+		newReceiptProof = true
 	}
 	for id, old := range previous.LateLandedFacts {
 		updated, exists := next.LateLandedFacts[id]
@@ -378,6 +389,7 @@ func preserveLandingExtensions(previous, next State, binding *DelegationBinding,
 			return ErrImmutable
 		}
 	}
+	newLateFact := false
 	for id, fact := range next.LateLandedFacts {
 		if _, existed := previous.LateLandedFacts[id]; existed {
 			continue
@@ -391,6 +403,10 @@ func preserveLandingExtensions(previous, next State, binding *DelegationBinding,
 		if len(next.LateLandedFacts) > len(previous.LateLandedFacts)+1 || !lateFactOnlyChanged(previous, next, id) {
 			return ErrImmutable
 		}
+		newLateFact = true
+	}
+	if newReceiptProof && newLateFact {
+		return ErrReceiptAudit
 	}
 	return nil
 }
