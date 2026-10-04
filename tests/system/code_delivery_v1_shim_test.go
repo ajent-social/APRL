@@ -410,7 +410,8 @@ func TestCodeDeliveryV1GenericShimUsesPublishedCLIAndRealClaim(t *testing.T) {
 	shim := newDeliveryV1Shim(t, f)
 	initial := shim.List(t)
 	author := f.task(t, plantasks.StageAuthor)
-	if initial.Revision < 1 || initial.DeliveryGateClaimID == "" {
+	if initial.Version != plantasks.VersionV1 || initial.LifecycleID != f.lifecycleID ||
+		initial.Revision != f.load(t).Revision || initial.DeliveryGateClaimID == "" {
 		t.Fatal("generic shim omitted lifecycle revision or stable delivery gate claim")
 	}
 
