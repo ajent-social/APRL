@@ -172,6 +172,14 @@ func TestServiceRoles(t *testing.T) {
 		secondJob := f.addJob(t, "author")
 		firstOutbox := f.addOutbox(t, firstJob, "NOTIFY", `{"job_id":"`+firstJob+`"}`, f.clock.Now())
 		secondOutbox := f.addOutbox(t, secondJob, "NOTIFY", `{"job_id":"`+secondJob+`"}`, f.clock.Now())
+		// Give the rows an explicit order so the revoked-inventory assertion
+		// does not depend on their random UUID tie-breaker.
+		if _, err := f.db.Pool.Exec(f.ctx, `UPDATE outbox SET created_at=$2 WHERE id=$1::uuid`, firstOutbox, f.clock.Now().Add(-time.Second)); err != nil {
+			t.Fatalf("order first outbox row: %v", err)
+		}
+		if _, err := f.db.Pool.Exec(f.ctx, `UPDATE outbox SET created_at=$2 WHERE id=$1::uuid`, secondOutbox, f.clock.Now().Add(time.Second)); err != nil {
+			t.Fatalf("order second outbox row: %v", err)
+		}
 		recovery := &serviceRoleRecovery{}
 		var callbackCalls atomic.Int32
 		ack := func(context.Context, dispatch.OutboxItem) error {
@@ -212,6 +220,12 @@ func TestServiceRoles(t *testing.T) {
 			return callbackCalls.Load() == 2, nil
 		})
 		var firstPublished, secondPublishedAfter *time.Time
+		serviceRoleWaitUntil(t, "second outbox transaction commit", func() (bool, error) {
+			if err := f.db.Pool.QueryRow(f.ctx, `SELECT published_at FROM outbox WHERE id=$1::uuid`, secondOutbox).Scan(&secondPublishedAfter); err != nil {
+				return false, err
+			}
+			return secondPublishedAfter != nil, nil
+		})
 		if err := f.db.Pool.QueryRow(f.ctx, `SELECT published_at FROM outbox WHERE id=$1::uuid`, firstOutbox).Scan(&firstPublished); err != nil {
 			t.Fatal(err)
 		}
