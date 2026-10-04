@@ -270,8 +270,12 @@ func validateLandedEvidence(state State, receipt Receipt, evidence LandedEvidenc
 			merged = true
 		}
 	}
-	if !approved || !merged || receipt.Actor.ActorID == "" || receipt.Actor.ActorID != evidence.Receipt.Reviewer || evidence.Receipt.Author == evidence.Receipt.Reviewer {
+	if !approved || !merged || receipt.Actor.ActorID == "" || receipt.Actor.ActorID != evidence.Receipt.Reviewer ||
+		evidence.Receipt.Author != state.Lifecycle.Authored.ActorID || evidence.Receipt.Author == evidence.Receipt.Reviewer {
 		return fmt.Errorf("landing lacks independent approval and merge lineage: %w", ErrReceiptAudit)
+	}
+	if evidence.Receipt.Reviewer == state.Lifecycle.Authored.ActorID || evidence.Receipt.Verifier == state.Lifecycle.Authored.ActorID {
+		return fmt.Errorf("landing reviewer or verifier is the lifecycle author: %w", ErrReceiptAudit)
 	}
 	for _, candidate := range state.Tasks {
 		for _, author := range candidate.Authors {
