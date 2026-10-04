@@ -141,6 +141,15 @@ func (s *Store) Update(ctx context.Context, lifecycleID string, expectedRevision
 	return s.update(ctx, lifecycleID, expectedRevision, fn, nil)
 }
 
+// verifiedLandingTransition is a package-private capability minted only after
+// trusted host verification, never supplied by worker receipts or public updates.
+type verifiedLandingTransition struct {
+	ReceiptID string
+	FactID    string
+	Evidence  LandedEvidence
+	HostActor string
+}
+
 // update requires an unexported capability for trusted landing extensions.
 func (s *Store) update(ctx context.Context, lifecycleID string, expectedRevision int64, fn func(*State) error, verified *verifiedLandingTransition) error {
 	if s == nil || s.pool == nil || isNilDependency(s.clock) || ctx == nil || lifecycleID == "" || expectedRevision < 0 || fn == nil {
