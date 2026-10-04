@@ -149,6 +149,8 @@ type Receipt struct {
 	ObservedOutcome Outcome    `json:"observed_outcome,omitempty"`
 	Detail          string     `json:"detail,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
+	// LandedEvidence is supplied only by a trusted host verifier.
+	LandedEvidence *LandedEvidence `json:"landed_evidence,omitempty"`
 }
 
 var (
@@ -396,6 +398,17 @@ func (r Receipt) Validate() error {
 	}
 	if r.ObservedOutcome != "" && r.PR == nil {
 		return invalid("pull_request", "late observation requires an exact PR binding")
+	}
+	if r.LandedEvidence != nil {
+		if r.Outcome != OutcomeLanded && r.ObservedOutcome != OutcomeLanded {
+			return invalid("landed_evidence", "only a landing may carry host proof")
+		}
+		if err := validateLandedEvidenceShape(*r.LandedEvidence); err != nil {
+			return err
+		}
+		if r.LandedEvidence.LifecycleID != r.LifecycleID || r.LandedEvidence.TaskID != r.TaskID || r.LandedEvidence.ReceiptID != r.ID {
+			return invalid("landed_evidence", "host proof subject differs from receipt")
+		}
 	}
 	return nil
 }

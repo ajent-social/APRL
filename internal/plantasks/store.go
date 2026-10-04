@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"reflect"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -52,6 +53,14 @@ func (s *Store) Create(ctx context.Context, state State) error {
 	}
 	if err := state.ValidateAt(s.clock.Now().UTC()); err != nil {
 		return fmt.Errorf("validate plan lifecycle: %w", err)
+	}
+	if len(state.LateLandedFacts) != 0 {
+		return fmt.Errorf("create cannot mint trusted landing audits: %w", ErrImmutable)
+	}
+	for _, receipt := range state.Receipts {
+		if receipt.LandedEvidence != nil {
+			return fmt.Errorf("create cannot mint trusted landing proof: %w", ErrImmutable)
+		}
 	}
 	payload, err := json.Marshal(state)
 	if err != nil {
@@ -129,6 +138,11 @@ func (s *Store) Load(ctx context.Context, lifecycleID string) (State, error) {
 // Update applies one trusted transition under a row lock and optimistic
 // revision check. Existing receipt records cannot be changed or removed.
 func (s *Store) Update(ctx context.Context, lifecycleID string, expectedRevision int64, fn func(*State) error) error {
+	return s.update(ctx, lifecycleID, expectedRevision, fn, nil)
+}
+
+// update requires an unexported capability for trusted landing extensions.
+func (s *Store) update(ctx context.Context, lifecycleID string, expectedRevision int64, fn func(*State) error, verified *verifiedLandingTransition) error {
 	if s == nil || s.pool == nil || isNilDependency(s.clock) || ctx == nil || lifecycleID == "" || expectedRevision < 0 || fn == nil {
 		return fmt.Errorf("update plan lifecycle: %w", ErrInvalidStore)
 	}
@@ -165,12 +179,22 @@ func (s *Store) Update(ctx context.Context, lifecycleID string, expectedRevision
 			return fmt.Errorf("delegation committed during lifecycle lookup: %w", ErrConflict)
 		}
 	}
-	if revision != expectedRevision {
-		return fmt.Errorf("expected revision %d, found %d: %w", expectedRevision, revision, ErrConflict)
-	}
 	var state State
 	if err := decodeState(payload, &state); err != nil {
 		return fmt.Errorf("decode lifecycle %s: %w", lifecycleID, err)
+	}
+	staleReplay := revision != expectedRevision
+	if staleReplay {
+		allowed := false
+		if verified != nil && verified.FactID != "" && verified.ReceiptID == "" {
+			fact, exists := state.LateLandedFacts[verified.FactID]
+			allowed = exists && fact.Receipt.LandedEvidence != nil &&
+				fact.Receipt.LandedEvidence.Revision == expectedRevision && fact.HostActor == verified.HostActor &&
+				reflect.DeepEqual(*fact.Receipt.LandedEvidence, verified.Evidence)
+		}
+		if !allowed {
+			return fmt.Errorf("expected revision %d, found %d: %w", expectedRevision, revision, ErrConflict)
+		}
 	}
 	if state.Lifecycle.ID != lifecycleID || state.Revision != revision {
 		return fmt.Errorf("lifecycle identity or revision mismatch: %w", ErrConflict)
@@ -200,7 +224,18 @@ func (s *Store) Update(ctx context.Context, lifecycleID string, expectedRevision
 		return fmt.Errorf("snapshot receipt audit before transition: %w", err)
 	}
 	if err := fn(&state); err != nil {
+		if errors.Is(err, errLateLandingReplay) && verified != nil && verified.FactID != "" &&
+			reflect.DeepEqual(originalState, state) {
+			fact, exists := originalState.LateLandedFacts[verified.FactID]
+			if exists && fact.Receipt.LandedEvidence != nil && fact.HostActor == verified.HostActor &&
+				fact.Receipt.LandedEvidence.Revision == expectedRevision && reflect.DeepEqual(*fact.Receipt.LandedEvidence, verified.Evidence) {
+				return nil // Deferred rollback releases locks without rewriting facts.
+			}
+		}
 		return fmt.Errorf("apply lifecycle transition: %w", err)
+	}
+	if staleReplay {
+		return fmt.Errorf("stale audit replay attempted a mutation: %w", ErrConflict)
 	}
 	changedPayload, err := json.Marshal(state)
 	if err != nil {
@@ -227,6 +262,12 @@ func (s *Store) Update(ctx context.Context, lifecycleID string, expectedRevision
 	if err := preserveAdmissions(oldAttempts, state.Attempts, oldClaims, state.Claims, oldReceipts, state.Receipts, revision, s.clock.Now().UTC(), oldStartedAt, state.Lifecycle); err != nil {
 		return err
 	}
+	if !reflect.DeepEqual(originalState.ProjectionTime, state.ProjectionTime) {
+		return fmt.Errorf("callback changed trusted projection time: %w", ErrImmutable)
+	}
+	if err := preserveLandingExtensions(originalState, state, binding, verified); err != nil {
+		return err
+	}
 	if err := fenceDelegationTransition(binding, originalState, state, s.clock.Now().UTC()); err != nil {
 		return err
 	}
@@ -234,7 +275,9 @@ func (s *Store) Update(ctx context.Context, lifecycleID string, expectedRevision
 		return fmt.Errorf("lifecycle revision exhausted: %w", ErrConflict)
 	}
 	state.Revision = revision + 1
-	if err := state.ValidateAt(s.clock.Now().UTC()); err != nil {
+	projectionTime := s.clock.Now().UTC()
+	state.ProjectionTime = &projectionTime
+	if err := state.ValidateAt(projectionTime); err != nil {
 		return fmt.Errorf("validate lifecycle transition: %w", err)
 	}
 	newPayload, err := json.Marshal(state)

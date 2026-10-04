@@ -34,6 +34,10 @@ type State struct {
 	DeliveryReceiptID string               `json:"delivery_receipt_id,omitempty"`
 	Attempts          map[string]int       `json:"attempts"`
 	StartedAt         time.Time            `json:"started_at"`
+	// ProjectionTime pins observation derivation to persisted facts, not reads.
+	ProjectionTime *time.Time `json:"projection_time,omitempty"`
+	// LateLandedFacts retain trusted audits without completing delivery tasks.
+	LateLandedFacts map[string]LateLandingFact `json:"late_landed_facts,omitempty"`
 }
 
 // Validate rejects inconsistent persisted graphs before they can be admitted.
@@ -43,6 +47,9 @@ func (s State) Validate() error {
 	}
 	if s.Revision < 0 || s.StartedAt.IsZero() || len(s.Tasks) == 0 {
 		return errors.New("invalid lifecycle state")
+	}
+	if s.ProjectionTime != nil && (s.ProjectionTime.IsZero() || s.ProjectionTime.Location() != time.UTC || s.ProjectionTime.Before(s.StartedAt)) {
+		return errors.New("invalid persisted projection time")
 	}
 	gate, exists := s.Tasks[s.Lifecycle.DeliveryGateID]
 	if !exists || gate.Stage != StageReview {
@@ -273,7 +280,7 @@ func (s State) Validate() error {
 			return errors.New("claim task missing")
 		}
 	}
-	return nil
+	return validateLandingExtensions(s)
 }
 
 // ValidateAt adds clock-dependent invariants while leaving historical state
@@ -284,6 +291,9 @@ func (s State) ValidateAt(now time.Time) error {
 	}
 	if err := s.Validate(); err != nil {
 		return err
+	}
+	if s.ProjectionTime != nil && s.ProjectionTime.After(now) {
+		return errors.New("persisted projection time is in the future")
 	}
 	active := 0
 	for _, claim := range s.Claims {
