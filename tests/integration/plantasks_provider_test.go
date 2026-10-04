@@ -58,6 +58,26 @@ func TestPlanProviderPostgresLifecycleRoundTrip(t *testing.T) {
 		t.Fatalf("initial provider snapshot = %#v", listed)
 	}
 
+	rows, ok := listed["tasks"].([]any)
+	if !ok {
+		t.Fatalf("provider tasks must be an array: %#v", listed["tasks"])
+	}
+	foundAuthor := false
+	for _, value := range rows {
+		row, ok := value.(map[string]any)
+		if !ok || row["task_id"] != plantasksStoreTaskID {
+			continue
+		}
+		foundAuthor = true
+		dependencies, ok := row["dependencies"].([]any)
+		if !ok || len(dependencies) != 0 {
+			t.Fatalf("leaf provider task dependencies must be an empty array: %#v", row["dependencies"])
+		}
+	}
+	if !foundAuthor {
+		t.Fatal("provider snapshot omitted the author task")
+	}
+
 	expires := manual.Now().Add(10 * time.Minute)
 	providerCall(t, provider, map[string]any{"version": 1, "action": "admit", "lifecycle_id": state.Lifecycle.ID,
 		"task_id": plantasksStoreTaskID, "expected_revision": 0, "claim_sha": claimAuthor, "expires_at": expires})
