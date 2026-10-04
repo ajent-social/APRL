@@ -215,7 +215,7 @@ func validateDelegationAuthorization(callerID, digest, requestedPolicyRevision s
 }
 
 func validateDelegationInitialState(request DeliveryV1Request, authorization DeliveryV1Authorization, state State, now time.Time) error {
-	if !authorization.Allowed || state.Revision != 0 || state.Cancelled || state.EscalationReason != "" || state.CurrentPR != nil || state.DeliveryReceiptID != "" || len(state.Tasks) != 2 || len(state.Receipts) != 0 || len(state.Completed) != 0 || len(state.Claims) != 0 || len(state.Attempts) != 0 {
+	if !authorization.Allowed || state.Revision != 0 || state.Cancelled || state.EscalationReason != "" || state.CurrentPR != nil || state.DeliveryReceiptID != "" || len(state.Tasks) != 2 || len(state.Receipts) != 0 || len(state.Completed) != 0 || len(state.Claims) != 0 || len(state.Attempts) != 0 || len(state.LateLandedFacts) != 0 || state.ProjectionTime != nil {
 		return errors.New("factory did not produce a pristine two-task lifecycle")
 	}
 	if state.StartedAt.IsZero() || state.StartedAt.After(now) || !state.Lifecycle.CreatedAt.Equal(state.StartedAt) || state.Lifecycle.Limits.MaxAttempts < 2 || state.Lifecycle.Limits.MaxAttempts > request.Spec.Envelope.MaxAttempts || state.Lifecycle.Limits.MaxConcurrentTasks > request.Spec.Envelope.MaxConcurrent || state.Lifecycle.Limits.MaxConcurrentTasks < 1 {
@@ -478,6 +478,8 @@ func (d *Delegations) finishDecision(ctx context.Context, callerID string, reque
 		if _, err := tx.Exec(ctx, `SAVEPOINT delegated_lifecycle_creation`); err != nil {
 			return DelegationBinding{}, fmt.Errorf("savepoint delegated lifecycle creation: %w", ErrDelegationUnavailable)
 		}
+		projectionTime := now
+		initial.ProjectionTime = &projectionTime
 		payload, err := json.Marshal(initial)
 		if err != nil {
 			return DelegationBinding{}, fmt.Errorf("encode initial lifecycle: %w", ErrDelegationUnavailable)
@@ -582,6 +584,7 @@ func (d *Delegations) Cancel(ctx context.Context, delegationID string) (Delegati
 			return DelegationBinding{}, err
 		}
 		newState.Revision++
+		newState.ProjectionTime = &now
 		payload, err := json.Marshal(newState)
 		if err != nil {
 			return DelegationBinding{}, fmt.Errorf("encode cancelled lifecycle: %w", ErrDelegationUnavailable)
@@ -706,6 +709,17 @@ func delegationOnlyLateFacts(oldState, newState State, allowCancelOnly bool) boo
 			return false
 		}
 		added++
+	}
+	for id, oldFact := range oldState.LateLandedFacts {
+		newFact, exists := newState.LateLandedFacts[id]
+		if !exists || !reflect.DeepEqual(oldFact, newFact) {
+			return false
+		}
+	}
+	for id := range newState.LateLandedFacts {
+		if _, exists := oldState.LateLandedFacts[id]; !exists {
+			added++
+		}
 	}
 	if added == 0 && oldState.Cancelled == newState.Cancelled {
 		return false

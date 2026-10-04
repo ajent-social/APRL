@@ -131,13 +131,20 @@ func (a *Adapter) Result(ctx context.Context, lifecycleID string, receipt Receip
 		return fmt.Errorf("receipt actor does not match authenticated session: %w", ErrActorDenied)
 	}
 	receipt.Actor = actor
+	if receipt.LandedEvidence != nil {
+		return fmt.Errorf("worker cannot supply host landing proof: %w", ErrOutcomeDenied)
+	}
 	if err := receipt.Validate(); err != nil {
 		return fmt.Errorf("validate plan task receipt: %w", err)
 	}
 	if err := a.verifyClaim(ctx, receipt.TaskID, claimSHA, actor.ActorID); err != nil {
 		return err
 	}
-	return a.store.Update(ctx, lifecycleID, expectedRevision, func(state *State) error {
+	verified, err := a.fetchLandingTransition(ctx, lifecycleID, claimSHA, expectedRevision, actor, &receipt)
+	if err != nil {
+		return err
+	}
+	return a.store.update(ctx, lifecycleID, expectedRevision, func(state *State) error {
 		lockedActor, err := a.authenticate(ctx)
 		if err != nil {
 			return err
@@ -162,8 +169,87 @@ func (a *Adapter) Result(ctx context.Context, lifecycleID string, receipt Receip
 			return err
 		}
 		now := a.store.clock.Now().UTC()
+		if verified != nil {
+			verifier, ok := a.outcomes.(LandingVerifier)
+			if !ok || isNilDependency(verifier) || receipt.LandedEvidence == nil {
+				return fmt.Errorf("trusted landing verifier disappeared: %w", ErrOutcomeDenied)
+			}
+			bounded, cancel := context.WithTimeout(ctx, landingOperationTimeout)
+			defer cancel()
+			if err := verifier.VerifyLanding(bounded, *state, task, receipt, verified.Evidence, a.store.clock.Now().UTC()); err != nil || bounded.Err() != nil {
+				return fmt.Errorf("fresh local landing proof verification failed: %w", ErrOutcomeDenied)
+			}
+			now = a.store.clock.Now().UTC()
+			if err := validateLandedEvidence(*state, receipt, verified.Evidence, now, false); err != nil {
+				return fmt.Errorf("landing proof differs from current state: %w", ErrOutcomeDenied)
+			}
+		}
 		return state.Record(receipt, claimSHA, now)
-	})
+	}, verified)
+}
+
+// fetchLandingTransition obtains host proof outside database locks. Delegated
+// landing requires typed evidence; legacy standalone verifiers remain compatible
+// without claiming qualification for the external v1 delivery protocol.
+func (a *Adapter) fetchLandingTransition(ctx context.Context, lifecycleID, claimSHA string, expectedRevision int64, actor Provenance, receipt *Receipt) (*verifiedLandingTransition, error) {
+	if receipt.Outcome != OutcomeLanded {
+		return nil, nil
+	}
+	bounded, cancel := context.WithTimeout(ctx, landingOperationTimeout)
+	defer cancel()
+	state, err := a.store.Load(bounded, lifecycleID)
+	if err != nil {
+		return nil, err
+	}
+	if state.Revision != expectedRevision {
+		return nil, fmt.Errorf("landing snapshot revision changed: %w", ErrConflict)
+	}
+	now := a.store.clock.Now().UTC()
+	if state.Cancelled || !now.Before(state.StartedAt.Add(time.Duration(state.Lifecycle.Limits.MaxDurationSeconds)*time.Second)) {
+		return nil, fmt.Errorf("landing scope is terminal: %w", ErrClaimDenied)
+	}
+	claim, exists := state.Claims[receipt.TaskID]
+	if !exists || claim.ClaimSHA != claimSHA || claim.ActorID != actor.ActorID || !now.Before(claim.ExpiresAt) {
+		return nil, fmt.Errorf("landing lacks a live matching admission: %w", ErrClaimDenied)
+	}
+	task, exists := state.Tasks[receipt.TaskID]
+	if !exists {
+		return nil, ErrNotFound
+	}
+	if err := ValidateReceipt(state.Lifecycle, task, *receipt); err != nil {
+		return nil, err
+	}
+	if err := a.authorize(bounded, state.Lifecycle, task, actor); err != nil {
+		return nil, err
+	}
+	var delegated bool
+	var exactExpiry string
+	if err := a.store.pool.QueryRow(bounded, `SELECT EXISTS(SELECT 1 FROM plan_delegations WHERE lifecycle_id=$1::uuid),
+		COALESCE((SELECT expires_at_exact FROM plan_delegations WHERE lifecycle_id=$1::uuid),'')`, lifecycleID).Scan(&delegated, &exactExpiry); err != nil {
+		return nil, fmt.Errorf("resolve landing scope: %w", ErrOutcomeDenied)
+	}
+	if delegated {
+		expires, parseErr := time.Parse(time.RFC3339Nano, exactExpiry)
+		if parseErr != nil || !a.store.clock.Now().UTC().Before(expires) {
+			return nil, fmt.Errorf("exact delegation scope expired: %w", ErrClaimDenied)
+		}
+	}
+	verifier, qualified := a.outcomes.(LandingVerifier)
+	if !qualified || isNilDependency(verifier) {
+		if delegated {
+			return nil, fmt.Errorf("delegated landing requires typed host proof: %w", ErrOutcomeDenied)
+		}
+		return nil, nil
+	}
+	evidence, err := verifier.FetchLanding(bounded, state, task, *receipt)
+	if err != nil || bounded.Err() != nil {
+		return nil, fmt.Errorf("fetch trusted landing proof: %w", ErrOutcomeDenied)
+	}
+	if err := validateLandedEvidence(state, *receipt, evidence, a.store.clock.Now().UTC(), false); err != nil {
+		return nil, fmt.Errorf("validate trusted landing proof: %w", ErrOutcomeDenied)
+	}
+	receipt.LandedEvidence = &evidence
+	return &verifiedLandingTransition{ReceiptID: receipt.ID, Evidence: evidence}, nil
 }
 
 // VisibleTask is a read-only projection for shared plan tooling. Ready is an
