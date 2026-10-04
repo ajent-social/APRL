@@ -459,12 +459,25 @@ func TestPlanTaskLandingEvidenceCannotBeForgedByWorkerOrPublicStoreUpdate(t *tes
 		t.Fatal("worker-supplied landing proof was accepted")
 	}
 	assertPlantasksEvidenceUnchanged(t, f, before)
+	beforeBinding, err := f.delegates.Get(f.ctx, f.request.DelegationID)
+	if err != nil {
+		t.Fatalf("load delegated binding before proofless public store attempt: %v", err)
+	}
 	if err := f.store.Update(f.ctx, before.Lifecycle.ID, before.Revision, func(current *plantasks.State) error {
+		// This is intentionally proofless: the verified capability is private
+		// to Adapter.Result, so a public callback cannot satisfy the delivery gate.
 		return current.Record(receipt, f.claimID, f.manual.Now())
 	}); err == nil {
 		t.Fatal("public store callback forged host landing without verified capability")
 	}
 	assertPlantasksEvidenceUnchanged(t, f, before)
+	afterBinding, err := f.delegates.Get(f.ctx, f.request.DelegationID)
+	if err != nil {
+		t.Fatalf("load binding after proofless public store attempt: %v", err)
+	}
+	if beforeBinding.Sequence != afterBinding.Sequence || beforeBinding.LifecycleRevision != afterBinding.LifecycleRevision {
+		t.Fatalf("proofless public store attempt churned binding sequence/revision: before=%+v after=%+v", beforeBinding, afterBinding)
+	}
 }
 
 func TestPlanTaskLandingEvidenceBindingFailureRollsBackReceiptAndProof(t *testing.T) {
