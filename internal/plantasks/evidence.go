@@ -364,7 +364,8 @@ func preserveLandingExtensions(previous, next State, binding *DelegationBinding,
 		if _, existed := previous.Receipts[id]; existed || receipt.LandedEvidence == nil {
 			continue
 		}
-		if verified == nil || verified.ReceiptID != id || !reflect.DeepEqual(*receipt.LandedEvidence, verified.Evidence) {
+		if binding == nil || binding.Status != DelegationAdmitted || binding.Cancelled || binding.LifecycleID != receipt.LifecycleID ||
+			verified == nil || verified.ReceiptID != id || !reflect.DeepEqual(*receipt.LandedEvidence, verified.Evidence) {
 			return ErrReceiptAudit
 		}
 	}
@@ -379,6 +380,9 @@ func preserveLandingExtensions(previous, next State, binding *DelegationBinding,
 			continue
 		}
 		if verified == nil || verified.FactID != id || verified.HostActor != fact.HostActor || fact.Receipt.LandedEvidence == nil || !reflect.DeepEqual(verified.Evidence, *fact.Receipt.LandedEvidence) {
+			return ErrReceiptAudit
+		}
+		if binding != nil && (binding.LifecycleID != fact.Receipt.LifecycleID || binding.Status != DelegationAdmitted && binding.Status != DelegationCancelled || !binding.Cancelled && !binding.Request.Spec.Envelope.ExpiresAt.IsZero() && fact.ObservedAt.Before(binding.Request.Spec.Envelope.ExpiresAt)) {
 			return ErrReceiptAudit
 		}
 		if len(next.LateLandedFacts) > len(previous.LateLandedFacts)+1 || !lateFactOnlyChanged(previous, next, id) {
