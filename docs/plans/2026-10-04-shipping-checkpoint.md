@@ -1,23 +1,19 @@
 # APRL production shipping checkpoint
 
-Authoritative task graph: docs/plan.md and its linked epic files. This checkpoint is an execution snapshot, not another scheduler or authority source.
+Authoritative task graph: docs/plan.md and linked epic files. This is an execution snapshot, not another scheduler or authority source.
 
-## Current state
+## Delivered source
 
-- User requested execution of the merged full-SDLC plan. Production destination remains https://aprl.sire.run on AWS; T9.16 is open.
-- Baseline main: d97a89d8d97e998901721a7060d7e1e9ab29200d. Exact baseline hosted CI37192937020 succeeded. Prior E1/E6/E7/E8 delivery receipts are source/fixture qualification, not production activation.
-- T9.1, T2.0 and T2.1 audited/groomed; T2.2 hostauth and T2.3 resultclient implementation dispatched on disjoint owned worktrees. Coordinator owns actual TLS/Postgres integration, shared docs and verification. Implementation claims are coordinator-held; no worker may release another holder.
-- Local compiler/testing held while one-minute load exceeds 10, respecting ADR 004. Existing hosted Linux CI supplies exact candidate build/test verification; no local lease bypass.
-- CLI intentionally refuses all roles pending production factory, host recovery, OCI, provider and broker bindings. These new transport adapters must not activate workers or infer billing/delivery authority.
+PR24 merged by guarded rebase into remote main af9f10647b564fcc9e1783af69173df0df37dd06. Independent reviewer /root/plan_review approved exact head e3e68fcf92bd7d3c044fdd964802694daedeb20c against d97a89d8d97e998901721a7060d7e1e9ab29200d after F1 UUID-normalization correction. Required hosted CI37196546731 passed formatting/vet/lint, 613 regular and 613 race terminal tests, zero failures/skips. Whole candidate tree equals landed remote tree; candidate evidence remains applicable. T2.0-T2.7 and correction exits complete; E2 live pilot is not qualified.
 
-## Unresolved inputs
+Host-only signed run credentials, bounded TLS result submission and actual Postgres result-boundary acceptance are delivered. CLI still refuses production roles without trusted factories. No runtime/provider/GitHub App activation, release artifact, cloud provisioning or deployment occurred. T9.16 remains open. Local compiler/testing held because one-minute load exceeded 10; hosted Linux CI supplied verification.
 
-AWS identity probe works, but selected account/profile, region and finite AWS allowance await operator response. GitHub Apps/owned sandbox and supported subscription-only or bounded paid-provider execution/grant remain unspecified. aprl.sire.run currently resolves NXDOMAIN; authoritative DNS is Cloudflare and no configured Cloudflare operations MCP is available. A documented authorized tool binding is required before DNS changes.
+## Specific unresolved inputs
 
-## Resume and invalidation
+T2.8 requires the supported model execution path (subscription-only or bounded paid provider), owned GitHub Apps/sandbox and runtime credential bindings. T9.2 requires selected AWS account/profile, region and finite AWS cost limit. Existing AWS authentication does not select deployment authority. The operator questions remain unanswered; time elapsed is not approval.
 
-Finish T2.2/T2.3, integrate their owned commits, run candidate CI and real result-boundary acceptance, independently review exact base/head, resolve findings through explicit fix/verification/re-review tasks, merge and verify actual landing. Then T2.8 expands only reachable real-runtime work; live pilot and deployment stay gated on specific unresolved inputs. Changes to source/head/base/auth contract invalidate affected verification/review. No release or cloud resource has been created by this run.
+Read-only preflight observed aprl.sire.run NXDOMAIN, Cloudflare authoritative DNS, empty repository Actions secret/variable metadata, and no configured Cloudflare operations MCP. DNS changes require an authorized available tool binding. No account identifiers, credentials or private endpoints are stored here.
 
-## Verified candidate — 2026 10 04
+## Resume
 
-PR24 source6b9d5137facbb26725d6fdc94dd70e04d13fa05f passed hosted CI37195830606: 612 regular and 612 race terminal tests, zero failures/skips, plus formatting/vet/lint. T2.2/T2.3 author handoff and T2.4 verification complete; T2.5 independent review, T2.6 merge and T2.7 landed verification remain open. Test source and production source are distinct from runtime deployment evidence. GitHub repository secret/variable metadata is empty; no live App/provider/AWS grant discovered.
+Resolve the specific operator bindings; T2.8 and T9.2 then expand actual reachable runtime and production work with owned files and stage-linked implementation, verification, independent review, guarded merge and landed evidence. Add real verified-landed exit IDs to downstream gates. Continue through release, staging, production, observation and handoff; never close T9.16 from source or fixture evidence. Keep original checkout and other agents' work preserved.
