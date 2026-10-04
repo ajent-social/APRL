@@ -329,7 +329,7 @@ func (a *Adapter) ProviderSnapshot(ctx context.Context, lifecycleID string) (Pro
 		if err != nil {
 			return ProviderSnapshot{}, err
 		}
-		item := VisibleTask{TaskID: id, ClaimID: claimID, Stage: task.Stage, Dependencies: append([]Dependency(nil), task.Dependencies...), FindingIDs: append([]string(nil), task.FindingIDs...),
+		item := VisibleTask{TaskID: id, ClaimID: claimID, Stage: task.Stage, Dependencies: append([]Dependency{}, task.Dependencies...), FindingIDs: append([]string(nil), task.FindingIDs...),
 			Ready: delegatedReady && state.Eligible(id, actor.ActorID, now) == nil, DeliveryStatus: deliveryStatus(state, id), ReviewOutcome: reviewOutcome(state, task)}
 		if task.PR != nil {
 			item.PRURL = task.PR.URL
