@@ -144,7 +144,7 @@ Acceptance: T1.1-T1.19 pass on owned test services; a signed event completes thr
 - [x] T1.19.R Independently review and deliver T1.19 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/12 blocked-by: [T1.19] acc: [exact-head independent acceptance, guarded merge and actual landing verified]
   - S1.19.1 Verify: Make a required integration fixture absent and assert CI fails rather than passes/skips. Run the scoped tests, then formatter/linter checks after code changes.
 
-### E2 -- Review-only B with verified runtime and metering -> docs/plans/E2-review-runtime.md (5/10)
+### E2 -- Review-only B with verified runtime and metering -> docs/plans/E2-review-runtime.md (7/13)
 
 ### E3 - Bounded B/C remediation
 fidelity: outline
@@ -635,3 +635,8 @@ The execution controller continues across planning triggers, delivery, release, 
 E9 scheduling: one coordinator executes T9.1; T9.2 expands the reachable production horizon after reconciliation. T9.3-T9.11 follow their dependencies. T9.12 waits for the actual expanded E2-E5 exits as well as staging evidence. T9.13-T9.16 follow sequentially. Implementation decomposition may use up to three GPT-6-Luna workers with isolated external-SSD worktrees, exact ownership and serialized build leases; operational promotion and final acceptance stay coordinator-owned. No worker is launched by this planning refinement.
 
 2026 10 04 execution reconciliation: T9.1 audit completed with explicit unresolved AWS account/region approval, cost ceiling, real GitHub Apps/provider grant and Cloudflare DNS tool binding. Main d97a89d has successful hosted CI run37192937020. Local builds held because host load exceeds 10; no build lease is bypassed. E2 first credential-free adapter horizon is expanded; no production factory, provider or deployment enabled.
+
+#### Wave 41: Review F1 correction (1 coordinator)
+- [x] T2.5.F1 Scheduling reference; correct UUID normalization.
+- [ ] T2.5.F1.V Scheduling reference; verify corrected candidate.
+- [ ] T2.5.F1.R Scheduling reference; independent exact-head re-review.
