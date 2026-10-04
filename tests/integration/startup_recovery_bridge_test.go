@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
@@ -60,29 +61,64 @@ func TestStartupRecoveryBridgeBlocksControlEffectsUntilInventoryComplete(t *test
 	if len(recovery.observedHolds()) != 1 || recovery.observedHolds()[0].RunID != seed.lease.RunID || recovery.observedHolds()[0].State != processholds.StateUnknown {
 		t.Fatalf("fixture inventory did not preserve the ambiguous hold: %+v", recovery.observedHolds())
 	}
-	current, err := leases.Claim(f.ctx, f.db.Pool, f.clock, startupBridgeClaimRequest(f, seed.jobID))
+	replacementJobID := startupBridgeInsertReplacementJob(t, f, seed)
+	current, err := leases.Claim(f.ctx, f.db.Pool, f.clock, startupBridgeClaimRequest(f, replacementJobID))
 	if !errors.Is(err, leases.ErrBusy) {
-		t.Fatalf("replacement lease after complete inventory=(%+v,%v), want process-capacity denial", current, err)
+		t.Fatalf("generation+1 replacement lease after complete inventory=(%+v,%v), want process-capacity denial", current, err)
 	}
-	var jobState string
-	var leaseToken *string
-	if err := f.db.Pool.QueryRow(f.ctx, `SELECT status,lease_token::text FROM jobs WHERE id=$1::uuid`, seed.jobID).Scan(&jobState, &leaseToken); err != nil {
+	var replacementState string
+	var replacementLeaseToken *string
+	var replacementGeneration int64
+	if err := f.db.Pool.QueryRow(f.ctx, `SELECT status,lease_token::text,generation FROM jobs WHERE id=$1::uuid`, replacementJobID).Scan(&replacementState, &replacementLeaseToken, &replacementGeneration); err != nil {
+		t.Fatal(err)
+	}
+	var taskGeneration int64
+	if err := f.db.Pool.QueryRow(f.ctx, `SELECT generation FROM tasks WHERE id=$1::uuid`, f.taskID).Scan(&taskGeneration); err != nil {
 		t.Fatal(err)
 	}
 	var runs, reservations int
-	if err := f.db.Pool.QueryRow(f.ctx, `SELECT count(*) FROM agent_runs WHERE job_id=$1::uuid`, seed.jobID).Scan(&runs); err != nil {
+	if err := f.db.Pool.QueryRow(f.ctx, `SELECT count(*) FROM agent_runs WHERE task_id=$1::uuid`, f.taskID).Scan(&runs); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.db.Pool.QueryRow(f.ctx, `SELECT count(*) FROM budget_reservations WHERE run_id IN (SELECT id FROM agent_runs WHERE job_id=$1::uuid)`, seed.jobID).Scan(&reservations); err != nil {
+	if err := f.db.Pool.QueryRow(f.ctx, `SELECT count(*) FROM budget_reservations r JOIN agent_runs ar ON ar.id=r.run_id WHERE ar.task_id=$1::uuid`, f.taskID).Scan(&reservations); err != nil {
 		t.Fatal(err)
 	}
-	if jobState != "PENDING" || leaseToken != nil || runs != 1 || reservations != 1 {
-		t.Fatalf("replacement crossed unresolved hold fence: job=%s lease=%v runs=%d reservations=%d", jobState, leaseToken, runs, reservations)
+	if replacementState != "PENDING" || replacementLeaseToken != nil || replacementGeneration != 1 || taskGeneration != 1 || runs != 1 || reservations != 1 {
+		t.Fatalf("generation+1 replacement crossed unresolved hold fence: replacement=%s/%d lease=%v task_generation=%d runs=%d reservations=%d", replacementState, replacementGeneration, replacementLeaseToken, taskGeneration, runs, reservations)
 	}
 	startupBridgeRequireUnknownRetained(t, f, seed)
 	if exists, err := f.redis.Client.Exists(f.ctx, f.streamKey()).Result(); err != nil || exists == 0 {
 		t.Fatalf("control did not start dispatch after recovery: stream exists=%d err=%v", exists, err)
 	}
+}
+
+// startupBridgeInsertReplacementJob represents a valid control-resume job for
+// the same logical task. The old generation remains attached to its UNKNOWN
+// process hold, while the task and fresh job advance together to generation 1.
+func startupBridgeInsertReplacementJob(t *testing.T, f *dispatchTestFixture, seed startupBridgeSeedData) string {
+	t.Helper()
+	var jobID, operationID, correlationID string
+	if err := f.db.Pool.QueryRow(f.ctx, `SELECT gen_random_uuid()::text,gen_random_uuid()::text,gen_random_uuid()::text`).Scan(&jobID, &operationID, &correlationID); err != nil {
+		t.Fatal(err)
+	}
+	job := contracts.Job{
+		Version: 1, TaskID: f.taskID, JobID: jobID, Generation: seed.lease.Generation + 1,
+		Snapshot: seed.lease.Snapshot, Attempt: 1, OperationID: operationID,
+		CorrelationID: correlationID, Operation: "author",
+	}
+	payload, err := json.Marshal(job)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.db.Pool.Exec(f.ctx, `UPDATE tasks SET generation=$2 WHERE id=$1::uuid`, f.taskID, job.Generation); err != nil {
+		t.Fatalf("advance task to replacement generation: %v", err)
+	}
+	if _, err := f.db.Pool.Exec(f.ctx, `INSERT INTO jobs(id,task_id,pr_id,logical_key,operation_type,generation,expected_head_sha,expected_base_sha,remediation_attempt,payload)
+		VALUES($1::uuid,$2::uuid,$3,$4,'author',$5,$6,$7,1,$8::jsonb)`, jobID, f.taskID, f.prID,
+		"startup-bridge-replacement:"+jobID, job.Generation, job.Snapshot.HeadSHA, job.Snapshot.BaseSHA, payload); err != nil {
+		t.Fatalf("insert valid generation+1 replacement job: %v", err)
+	}
+	return jobID
 }
 
 func TestStartupRecoveryBridgeLateInventoryCannotStartControl(t *testing.T) {
