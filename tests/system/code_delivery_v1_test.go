@@ -494,7 +494,7 @@ func TestCodeDeliveryV1ReviewDeniesWrongHeadBaseAndAuthorIndependence(t *testing
 	beforeReview := f.load(t)
 	beforeReviewBinding := f.binding(t)
 	wrongHead := authorPR
-	wrongHead.HeadSHA = strings.Repeat("e", 40)
+	wrongHead.HeadSHA = codeDeliveryV1DifferentSHA(authorPR.HeadSHA, 'e')
 	wrongHeadActor := f.reviewer
 	wrongHeadActor.SourceRevision = wrongHead.HeadSHA
 	f.setActor(wrongHeadActor)
@@ -505,7 +505,7 @@ func TestCodeDeliveryV1ReviewDeniesWrongHeadBaseAndAuthorIndependence(t *testing
 	codeDeliveryV1AssertUnchanged(t, f, beforeReview, beforeReviewBinding)
 
 	wrongBase := authorPR
-	wrongBase.BaseSHA = strings.Repeat("b", 40)
+	wrongBase.BaseSHA = codeDeliveryV1DifferentSHA(authorPR.BaseSHA, 'd')
 	f.setActor(f.reviewer)
 	wrongBaseReceipt := f.receipt(t, review.TaskID, plantasks.OutcomeApproved, &wrongBase, nil)
 	providerCalls = shim.ProviderCalls()
@@ -652,6 +652,14 @@ func codeDeliveryV1PoolTask(t *testing.T, snapshot deliveryV1ShimSnapshot, claim
 	}
 	t.Fatalf("generic pool snapshot omits stable claim ID %s: %+v", claimID, snapshot.PoolTasks)
 	return nil
+}
+
+func codeDeliveryV1DifferentSHA(original string, fill byte) string {
+	candidate := strings.Repeat(string(fill), len(original))
+	if candidate == original {
+		return strings.Repeat("e", len(original))
+	}
+	return candidate
 }
 
 func codeDeliveryV1RequireProviderDenial(t *testing.T, shim *deliveryV1Shim, previousCalls int64, response map[string]any, callErr error) {
