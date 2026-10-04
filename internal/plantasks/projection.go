@@ -136,7 +136,7 @@ func (p *DeliveryV1Projector) Project(ctx context.Context, supplied DelegationBi
 		}
 	}
 	if err := observation.Validate(request); err != nil {
-		return DeliveryV1Observation{}, fmt.Errorf("validate delivery observation: %w", ErrDelegationConflict)
+		return DeliveryV1Observation{}, fmt.Errorf("validate delivery observation: %w: %w", ErrDelegationConflict, err)
 	}
 	if err := bounded.Err(); err != nil {
 		return DeliveryV1Observation{}, fmt.Errorf("delivery observation exceeded deadline: %w", ErrDelegationUnavailable)
