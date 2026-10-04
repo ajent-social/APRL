@@ -240,7 +240,11 @@ func TestAuthenticateSupervisorAcceptsRealTLSRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TLS request: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			t.Errorf("close TLS response: %v", err)
+		}
+	}()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("TLS request status = %d, want 200", response.StatusCode)
 	}

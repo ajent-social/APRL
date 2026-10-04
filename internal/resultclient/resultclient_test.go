@@ -224,7 +224,7 @@ func TestSubmitUnknownNetworkOutcomeAndCancellation(t *testing.T) {
 
 	t.Run("cancel in flight", func(t *testing.T) {
 		entered := make(chan struct{})
-		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 			close(entered)
 			<-r.Context().Done()
 		}))
