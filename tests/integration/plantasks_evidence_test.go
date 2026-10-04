@@ -70,6 +70,9 @@ func newPlantasksEvidenceFixture(t *testing.T) *plantasksEvidenceFixture {
 	_, request := plantasksDelegationRequest(t)
 	request.DelegationID = plantasksEvidenceID()
 	request.CallerID = auth.caller
+	// The real corrected workflow admits exactly four lifecycle tasks: initial
+	// author, initial review, one fix, and its independent re-review.
+	request.Spec.Envelope.MaxAttempts = 4
 	request.Spec.Envelope.ExpiresAt = now.Add(24 * time.Hour)
 	raw, err := plantasks.EncodeDeliveryV1Request(request)
 	if err != nil {
