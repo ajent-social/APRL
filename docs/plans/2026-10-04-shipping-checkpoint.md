@@ -17,3 +17,11 @@ Read-only preflight observed aprl.sire.run NXDOMAIN, Cloudflare authoritative DN
 ## Resume
 
 Resolve the specific operator bindings; T2.8 and T9.2 then expand actual reachable runtime and production work with owned files and stage-linked implementation, verification, independent review, guarded merge and landed evidence. Add real verified-landed exit IDs to downstream gates. Continue through release, staging, production, observation and handoff; never close T9.16 from source or fixture evidence. Keep original checkout and other agents' work preserved.
+
+## Source-consumer continuation (2026 10 05)
+
+PR26 delivered the explicit offline source-check proposal in docs/contracts/fixtures/source-consumer-check-v1.json and its canonical task T2.12. Independent exact-head approval3341945/base83c7ae6, CI37314527888 succeeded613regular/613race with zero failures/skips, guarded rebase landed2dd2ff3 and full approved/remote tree equality verified. E2 now16/19 explicit rows complete; T2.8 real-runtime expansion, T2.9 live pilot and T2.12 consumer execution remain open. Added bookkeeping does not change runtime completion.
+
+Three Luna audit turns and one later bounded Luna review retry exhausted429 before evidence. Independent proposal review used the existing coordinator model without a cloud worker or paid-provider fallback. No failed Luna result accepted. No self-hosted GitHub runners were returned. Local compiler held by load>10; this candidate's actual hosted check succeeded, so no billing-unavailable status is claimed for it.
+
+Read-only UpCloud account access succeeded: raw total credit50000, CPU6/memory12288/publicIPv4 two limits, accessible servers0 and43 templates with no worker-named match. This inventory does not qualify subscription image/auth or bootstrap; no cloud resource/reservation/spend. Shared Foundry/Zatiti bootstrap priority retained rather than launching competing controllers. Exact source-consumer commands/results are a proposal, not delegated service admission; caller/grant/expiry and executor subject await qualified owner bindings before execution.
