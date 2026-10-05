@@ -1,0 +1,98 @@
+{
+  "schema": "aprl/source-check-proposal/v1",
+  "canonical_task_id": "T2.12",
+  "source": {
+    "repository": "https://github.com/ajent-social/APRL",
+    "revision": "83c7ae670b07e00bc0d4b51e72879ca8f6ace71a"
+  },
+  "profile": "offline-source-only",
+  "purpose": "Verify published code-delivery contract and signed host-result transport without service enrollment",
+  "commands": [
+    {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/plantasks",
+        "./internal/hostauth",
+        "./internal/resultclient"
+      ],
+      "timeout_seconds": 180
+    },
+    {
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-json",
+        "./internal/plantasks",
+        "./internal/hostauth",
+        "./internal/resultclient"
+      ],
+      "timeout_seconds": 180
+    },
+    {
+      "argv": [
+        "go",
+        "vet",
+        "./internal/plantasks",
+        "./internal/hostauth",
+        "./internal/resultclient"
+      ],
+      "timeout_seconds": 180
+    }
+  ],
+  "contract_inputs": [
+    {
+      "path": "docs/contracts/fixtures/code-delivery-v1-request.json",
+      "sha256": "a20604ab6eeee1cd0c81034bc52761ad56b301a1801adea9334805694f495c47"
+    },
+    {
+      "path": "internal/plantasks/portable.go",
+      "contract_version": "0.0.1",
+      "contract_digest": "sha256:7582512f122d2f2a9c4461facc7541c9887053f137260d6ebe9c6dea611d039d"
+    }
+  ],
+  "acceptance": {
+    "positive_terminal_test_count": true,
+    "failures": 0,
+    "skips": 0,
+    "complete_package_events": [
+      "github.com/ajent-social/APRL/internal/plantasks",
+      "github.com/ajent-social/APRL/internal/hostauth",
+      "github.com/ajent-social/APRL/internal/resultclient"
+    ],
+    "normalization_regression": "TestSubmitAcceptsNormalizedOperationUUID",
+    "receipt_fields": [
+      "source_revision",
+      "source_tree",
+      "toolchain",
+      "commands",
+      "exit_codes",
+      "test_counts",
+      "package_terminals",
+      "environment",
+      "started_at",
+      "finished_at"
+    ]
+  },
+  "authority": {
+    "status": "proposal_not_admission",
+    "caller_binding": null,
+    "grant_binding": null,
+    "expires_at": null,
+    "required_before_execution": [
+      "owner-qualified executor and credential references",
+      "exact caller/scope/grant and immutable request digest",
+      "absolute expiry and stop deadline",
+      "shared capacity reservation or local load/lease admission"
+    ],
+    "max_paid_model_cost_cents": 0,
+    "cloud_allocation_authorized": false,
+    "live_service_calls_authorized": false
+  },
+  "runtime_qualification": false,
+  "production_qualification": false
+}
