@@ -144,7 +144,7 @@ Acceptance: T1.1-T1.19 pass on owned test services; a signed event completes thr
 - [x] T1.19.R Independently review and deliver T1.19 implementation  Owner: independent-reviewer kind: agent stage: review lane: agent pr-url: https://github.com/ajent-social/APRL/pull/12 blocked-by: [T1.19] acc: [exact-head independent acceptance, guarded merge and actual landing verified]
   - S1.19.1 Verify: Make a required integration fixture absent and assert CI fails rather than passes/skips. Run the scoped tests, then formatter/linter checks after code changes.
 
-### E2 -- Review-only B with verified runtime and metering -> docs/plans/E2-review-runtime.md (11/13)
+### E2 -- Review-only B with verified runtime and metering -> docs/plans/E2-review-runtime.md (13/19)
 
 ### E3 - Bounded B/C remediation
 fidelity: outline
@@ -642,3 +642,13 @@ E9 scheduling: one coordinator executes T9.1; T9.2 expands the reachable product
 - [x] T2.5.F1.R Scheduling reference; independent exact-head re-review.
 
 Execution closeout (2026 10 04): PR24 result transport source independently reviewed, CI37196546731 passed 613 regular/613 race tests with zero failures/skips, and exact candidate tree verified on remote main af9f10647b564fcc9e1783af69173df0df37dd06. E2 first horizon is delivered; T2.8/T2.9 and E9 production gates remain open on explicit operator bindings. Production is not deployed.
+
+#### Wave 42: Source-consumer proposal (1 coordinator; audit workers capacity-blocked)
+- [x] T2.11 Scheduling reference; freeze exact credential-free consumer subject.
+- [x] T2.15 Scheduling reference; structural and fixture verification.
+- [ ] T2.13 Scheduling reference; independent exact-head proposal review.
+- [ ] T2.14 Scheduling reference; guarded proposal merge.
+- [ ] T2.16 Scheduling reference; actual proposal landing verification.
+
+#### Wave 43: Qualified source-consumer check
+- [ ] T2.12 Scheduling reference; actual pinned normal/race/vet source check after proposal landing and executor/binding qualification.
