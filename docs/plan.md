@@ -1,5 +1,7 @@
 # APRL Implementation Plan
 
+> Portfolio direction (2026-10-16): [ADR011](adr/011-foundry-kernel-transition.md) selects phased kernel absorption into Foundry and retirement of APRL as a separate product, not an immediate shutdown. APRL remains the sole current scheduler/mutation authority for its enrolled PR lifecycles until verified cutover. The [Foundry portfolio plan](https://github.com/sirerun/foundry/blob/main/docs/portfolio-plan.md) owns transition dependencies and observability-first priority. Existing task IDs, statuses, receipts and native authority remain intact; historical standalone completion instructions do not authorize new independent product expansion or override that sequence.
+
 Change Summary: 2026 10 04 - Executing the merged full SDLC plan: T9.1 preflight reconciled and E2 host-result authentication/submission candidate verified through real TLS/Postgres and hosted CI; independent review/merge remain open, production remains gated.
 
 ## 1. Context
