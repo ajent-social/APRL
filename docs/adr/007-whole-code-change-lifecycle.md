@@ -1,5 +1,7 @@
 # ADR 007: Whole code-change lifecycle ownership and integration
 
+> Portfolio destination (2026-10-16): [ADR011](011-foundry-kernel-transition.md) plans absorption into Foundry. This ADR remains the current lifecycle ownership contract until verified cutover; product retirement is not scheduler replacement or shutdown authority.
+
 ## Status
 Accepted semantic contract; neutral code-delivery/v1 wire schema frozen; adapter qualification pending
 
